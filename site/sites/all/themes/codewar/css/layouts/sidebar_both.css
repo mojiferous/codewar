@@ -1,0 +1,27 @@
+/* line 1, ../../sass/layouts/sidebar_both.scss */
+body .region-sidebar-first {
+  width: 330px;
+  margin-left: 0px;
+  margin-right: -330px;
+}
+
+/* line 7, ../../sass/layouts/sidebar_both.scss */
+body #content {
+  width: 320px;
+  margin-left: 320px;
+  margin-right: -650px;
+}
+
+/* line 13, ../../sass/layouts/sidebar_both.scss */
+body .region-sidebar-second {
+  width: 330px;
+  margin-left: 650px;
+  margin-right: -980px;
+}
+
+/* line 21, ../../sass/layouts/sidebar_both.scss */
+body .region-sidebar-first,
+body #content,
+body .region-sidebar-second {
+  float: left;
+}

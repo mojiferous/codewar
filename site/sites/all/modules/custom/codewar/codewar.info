@@ -1,0 +1,8 @@
+name = Codewar
+description = Parses and outputs codewar code
+core = 7.x
+package = Codewar
+
+;dependencies[] = date_migrate
+
+files[] = codewar.module

@@ -1,0 +1,15 @@
+/**
+ * @file
+ * Elevated Third Fresh CSS
+ */
+/* line 8, ../sass/fresh.scss */
+#page {
+  margin-left: auto;
+  margin-right: auto;
+  width: 980px;
+}
+
+/* line 14, ../sass/fresh.scss */
+#footer {
+  clear: both;
+}

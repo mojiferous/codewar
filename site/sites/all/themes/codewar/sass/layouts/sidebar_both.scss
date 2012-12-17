@@ -1,0 +1,23 @@
+body .region-sidebar-first {
+  width: 330px;
+  margin-left: 0px;
+  margin-right: -330px;
+}
+
+body #content {
+  width: 320px;
+  margin-left: 320px;
+  margin-right: -650px;
+}
+
+body .region-sidebar-second {
+  width: 330px;
+  margin-left: 650px;
+  margin-right: -980px;
+}
+
+body .region-sidebar-first,
+body #content,
+body .region-sidebar-second {
+  float:left;
+}

@@ -1,0 +1,93 @@
+<?php
+/**
+ * handles codewar parsing and output
+ * codewar.module
+ * 12/13/12 Mojiferous
+ */
+
+/**
+ * implements hook_menu()
+ */
+function codewar_menu() {
+  $items = array();
+
+  $items['code/%node'] = array(
+    'title' => 'Code test output',
+    'description' => 'Test output for codewar',
+    'page callback' => 'codewar_render_code',
+    'page arguments' => array(1),
+    'access callback' => true,
+    'access arguments' => array(1),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+function codewar_render_code($node) {
+  $this_body = field_get_items('node', $node, 'body');
+  $raw_body = '';
+
+  if(isset($this_body[0])) {
+    $raw_body = $this_body[0]['value'];
+  }
+
+  $raw_body = str_replace("\n", ' ', $raw_body);
+  $raw_body = str_replace("\r", ' ', $raw_body);
+  $raw_body = str_replace('  ', ' ', $raw_body);
+
+  //divide the body into lines
+  $body_parts = explode(" ", $raw_body);
+
+  $output = '';
+  $is_func = 0;
+  $is_if = 0;
+
+  foreach ($body_parts as $part) {
+    switch(strtolower($part)) {
+      case 'dim':
+        $output .= 'var ';
+        break;
+      case 'begn':
+        $output .= 'function ';
+        $is_func = 1;
+        break;
+      case 'movx':
+        $output .= 'movex = ';
+        break;
+      case 'movy':
+        $output .= 'movey = ';
+        break;
+      case 'spdx':
+        $output .= 'speedx = ';
+        break;
+      case 'spdy':
+        $output .= 'speedy = ';
+        break;
+      case 'if':
+        $output .= 'if(';
+        $is_if = 1;
+        break;
+      case 'end':
+        $output .= '}';
+        break;
+      default:
+        if($is_func == 1) {
+          $output .= $part.'() {';
+          $is_func = 0;
+        } elseif($is_if == 1) {
+          $output .= $part.') {';
+          $is_if = 0;
+        } else {
+          $output .= $part.';';
+        }
+        break;
+    }
+  }
+
+  dpm($body_parts);
+
+  dpm($raw_body);
+
+  return $output;
+}
