@@ -5,6 +5,8 @@
  * 12/13/12 Mojiferous
  */
 
+require_once('code_bot.inc');
+
 /**
  * implements hook_menu()
  */
@@ -40,52 +42,14 @@ function codewar_render_code($node) {
   $body_parts = explode(" ", $raw_body);
 
   $output = '';
-  $is_func = 0;
-  $is_if = 0;
 
-  foreach ($body_parts as $part) {
-    switch(strtolower($part)) {
-      case 'dim':
-        $output .= 'var ';
-        break;
-      case 'begn':
-        $output .= 'function ';
-        $is_func = 1;
-        break;
-      case 'movx':
-        $output .= 'movex = ';
-        break;
-      case 'movy':
-        $output .= 'movey = ';
-        break;
-      case 'spdx':
-        $output .= 'speedx = ';
-        break;
-      case 'spdy':
-        $output .= 'speedy = ';
-        break;
-      case 'if':
-        $output .= 'if(';
-        $is_if = 1;
-        break;
-      case 'end':
-        $output .= '}';
-        break;
-      default:
-        if($is_func == 1) {
-          $output .= $part.'() {';
-          $is_func = 0;
-        } elseif($is_if == 1) {
-          $output .= $part.') {';
-          $is_if = 0;
-        } else {
-          $output .= $part.';';
-        }
-        break;
-    }
-  }
+  $this_code = new code_bot($body_parts);
+  $this_code->parse_code();
+  $code_array = $this_code->code_array;
+  drupal_add_js(array('bot_code' => $code_array), 'setting');
 
-  dpm($body_parts);
+
+  dpm($code_array);
 
   dpm($raw_body);
 
