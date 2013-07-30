@@ -3,6 +3,5 @@ description = Parses and outputs codewar code
 core = 7.x
 package = Codewar
 
-;dependencies[] = date_migrate
-
+files[] = code_bot.inc
 files[] = codewar.module

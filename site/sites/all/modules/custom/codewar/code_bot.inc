@@ -41,7 +41,8 @@ class code_bot {
         case 'if':
           $this->line_num++;
           if($this->check_array_length() && $this->check_for_function()) {
-            $this->if_array[] = array('if' => $this->return_next_value());
+            $this->code_array[$this->this_func][] = 'IF '.$this->return_next_value();
+            $this->if_array[] = array(0);
           }
           break;
 
@@ -53,9 +54,9 @@ class code_bot {
             array_pop($this->if_array);
             if(count($this->if_array) > 0) {
               //we're in a nested if
-              $this->if_array[count($this->if_array)-1][] = $if_val;
+              $this->code_array[$this->this_func][] = 'END IF';
             } elseif($this->check_for_function()) {
-              $this->code_array[$this->this_func][] = $if_val;
+              $this->code_array[$this->this_func][] = 'END IF';
             }
           } else {
             //we're at the end of the function
@@ -71,13 +72,7 @@ class code_bot {
         default:
           $this->line_num++;
           if($this->check_array_length() && $this->check_for_function()) {
-            if(count($this->if_array) > 0) {
-              //we're in an if
-              $this->if_array[count($this->if_array)-1][] = $this_command.' '.$this->return_next_value();
-            } else {
-              //we're just in the function
-              $this->code_array[$this->this_func][] = $this_command.' '.$this->return_next_value();
-            }
+            $this->code_array[$this->this_func][] = $this_command.' '.$this->return_next_value();
           }
 
       }

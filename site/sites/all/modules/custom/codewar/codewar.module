@@ -26,6 +26,11 @@ function codewar_menu() {
   return $items;
 }
 
+/**
+ * return the code for a specific codebot
+ * @param object $node
+ * @return string
+ */
 function codewar_render_code($node) {
   $this_body = field_get_items('node', $node, 'body');
   $raw_body = '';
@@ -47,6 +52,9 @@ function codewar_render_code($node) {
   $this_code->parse_code();
   $code_array = $this_code->code_array;
   drupal_add_js(array('bot_code' => $code_array), 'setting');
+
+  $path = drupal_get_path('module', 'codewar');
+  drupal_add_js($path.'/js/codebot.js');
 
 
   dpm($code_array);
