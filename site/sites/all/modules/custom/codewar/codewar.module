@@ -57,9 +57,9 @@ function codewar_render_code($node) {
   drupal_add_js($path.'/js/codebot.js');
 
 
-  dpm($code_array);
+  dpm($code_array, 'code array');
 
-  dpm($raw_body);
+  dpm($raw_body, 'raw body');
 
   return $output;
 }
