@@ -9,6 +9,7 @@ require_once('code_bot.inc');
 
 /**
  * implements hook_menu()
+ * @todo add proper access callbacks to check user access to node
  */
 function codewar_menu() {
   $items = array();
@@ -23,7 +24,115 @@ function codewar_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
 
+  $items['build/%node'] = array(
+    'title' => 'Build Code',
+    'description' => t('Build code for bot'),
+    'page callback' => 'codewar_build_code',
+    'page arguments' => array(1),
+    'access callback' => true,
+    'access arguments' => array(1),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['run/%node'] = array(
+    'title' => 'Run Code',
+    'description' => t('Run code for bot'),
+    'page callback' => 'codewar_run_code',
+    'page arguments' => array(1),
+    'access callback' => true,
+    'access arguments' => array(1),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['step/%'] = array(
+    'title' => 'Process',
+    'description' => t('Process code for bot'),
+    'page callback' => 'codewar_process_code',
+    'page arguments' => array(1),
+    'access callback' => true,
+    'type' => MENU_NORMAL_ITEM,
+  );
+
   return $items;
+}
+
+/**
+ * builds the code from the body into a json array and saves it to the output field
+ * @param $node
+ * @return string
+ */
+function codewar_build_code($node) {
+  //load the node body
+  $this_body = field_get_items('node', $node, 'body');
+  $raw_body = '';
+
+  if(isset($this_body[0])) {
+    $raw_body = $this_body[0]['value'];
+  }
+
+  //divide the body into lines
+  $body_parts = preg_split("/\r\n|\n|\r/", $raw_body);
+
+  //parse the code and transform it into a json array, this is the "built code"
+  $this_code = new code_bot($body_parts);
+  $this_code->parse_code();
+  $code_array = json_encode($this_code->code_array);
+
+
+  //save the new value onto the node
+  $node->field_output[LANGUAGE_NONE][0]['value'] = $code_array;
+  node_save($node);
+
+  return 'CODE BUILT';
+}
+
+/**
+ * run the codebot
+ * @param $node
+ * @return string
+ */
+function codewar_run_code($node) {
+  $raw_code = field_get_items('node', $node, 'field_output');
+
+  if(isset($raw_code[0])) {
+    $raw_code = json_decode($raw_code[0]['value']);
+  }
+
+  $this_code = new code_bot('');
+  $this_code->code_array = (array)$raw_code;
+
+  if(isset($node->nid)) {
+    $_SESSION['code_bot_'.$node->nid] = $this_code;
+
+    drupal_add_js(array('bot_1' => $node->nid), 'setting');
+
+    $path = drupal_get_path('module', 'codewar');
+    drupal_add_js($path.'/js/codebot.js');
+
+  }
+
+
+  return '<div id="code_result">CODE:<br/></div>';
+}
+
+/**
+ * process ajax call from js
+ * @param $session_value
+ * @return string
+ */
+function codewar_process_code($session_value) {
+  $ret_val = '00';
+
+  if(isset($_SESSION['code_bot_'.$session_value])) {
+    //there is actually a local value for this session variable, set our codebot to it
+    $this_code = $_SESSION['code_bot_'.$session_value];
+
+    $ret_val = $this_code->run_code();
+
+    $_SESSION['code_bot_'.$session_value] = $this_code;
+  }
+
+  drupal_json_output($ret_val);
 }
 
 /**
@@ -39,22 +148,14 @@ function codewar_render_code($node) {
     $raw_body = $this_body[0]['value'];
   }
 
-  $raw_body = str_replace("\n", ' ', $raw_body);
-  $raw_body = str_replace("\r", ' ', $raw_body);
-  $raw_body = str_replace('  ', ' ', $raw_body);
-
   //divide the body into lines
-  $body_parts = explode(" ", $raw_body);
+  $body_parts = preg_split("/\r\n|\n|\r/", $raw_body);
 
   $output = '';
 
   $this_code = new code_bot($body_parts);
   $this_code->parse_code();
   $code_array = $this_code->code_array;
-  drupal_add_js(array('bot_code' => $code_array), 'setting');
-
-  $path = drupal_get_path('module', 'codewar');
-  drupal_add_js($path.'/js/codebot.js');
 
 
   dpm($code_array, 'code array');
