@@ -88,6 +88,7 @@ function codewar_build_code($node) {
 
 /**
  * run the codebot
+ * @todo add "build and run" to this, so the code is always up to date
  * @param $node
  * @return string
  */
@@ -132,6 +133,7 @@ function codewar_process_code($session_value) {
     $_SESSION['code_bot_'.$session_value] = $this_code;
   }
 
+  return json_encode($ret_val);
   drupal_json_output($ret_val);
 }
 
@@ -159,8 +161,6 @@ function codewar_render_code($node) {
 
 
   dpm($code_array, 'code array');
-
-  dpm($raw_body, 'raw body');
 
   return $output;
 }

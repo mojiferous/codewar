@@ -3,17 +3,17 @@
   <div id="content-btth">
       
       <?php if ($btth['breadcrumb']): ?>
-          <?php print $breadcrumb; ?>
+<!--          --><?php //print $breadcrumb; ?>
       <?php endif; ?>
      
       <a id="main-content"></a> 
       
       <?php if ($btth['title_pref']): ?>
-          <?php print render($title_prefix); ?>
+<!--          --><?php //print render($title_prefix); ?>
       <?php endif; ?>
 
       <?php if ($title && $btth['title']): ?>
-          <h1 class="title" id="page-title"><?php print $title; ?></h1>
+<!--          <h1 class="title" id="page-title">--><?php //print $title; ?><!--</h1>-->
       <?php endif; ?>
 
       <?php if ($btth['title_suf']): ?>
