@@ -52,7 +52,7 @@ class code_bot {
         $line_val = $this->code_array[$this->line_num];
         $this->line_num++;
 
-      }while (empty($line_val));
+      } while (empty($line_val));
 
       $ret_val['line_num'] = $this->line_num-1;
 
@@ -72,7 +72,13 @@ class code_bot {
 
               if(isset($this->code_array['vars']->$var_name)) {
 
-                //@todo set code here to test for numeric value in assignment, or load var/run syssfunc
+                if(!is_numeric($var_val)) {
+                  //if the value being assigned is not numeric, figure out what is going on here
+                  if(!$this->eval_code($var_val)) {
+                    //there has been an error!
+                    _set_array_error($ret_val, 'Assignment error on line #'.$ret_val['line_num']);
+                  }
+                }
 
                 $this->code_array['vars']->$var_name = $var_val;
 
@@ -168,6 +174,56 @@ class code_bot {
     }
 
     return array('ERROR' => 'No code!');
+  }
+
+  private function eval_code(&$result_var) {
+    //replace all our vars
+    $vars = (array)$this->code_array['vars'];
+
+    //split this string by mathematical symbols
+    $split_arg = preg_split('/[\s\(\),+*\/-]+|[\.]\s+/', $result_var, -1, PREG_SPLIT_NO_EMPTY);
+    //split the string into mathematical operators
+    $split_op = preg_split('/[a-z\d_]/', $result_var, -1, PREG_SPLIT_NO_EMPTY);
+
+    //loop through the arguments
+    foreach ($split_arg as $key => $argument) {
+      if(!is_numeric($argument)) {
+        if(isset($vars[$argument])) {
+          //there is a variable by the name of "argument" here
+          $split_arg[$key] = $vars[$argument];
+        } else {
+          //we don't have a value for this, function should error out
+          $result_var = -500;
+          return false;
+        }
+      }
+    }
+
+    $final_formula = '';
+
+    //loop through each part and build a final formula
+    $arg_count = count($split_arg);
+    $op_count = count($split_op);
+
+    $max_count = $arg_count;
+    if($op_count > $arg_count) $max_count = $op_count;
+
+    for($n=0; $n<$max_count; $n++) {
+      if(!isset($split_op[$n])) $split_op[$n] = '';
+      if(!isset($split_arg[$n])) $split_arg[$n] = '';
+
+      if($op_count > $arg_count) {
+        //there are more operators than symbols, put them first
+        $final_formula .= $split_op[$n].$split_arg[$n];
+      } else {
+        //there are more symbols than operators
+        $final_formula .= $split_arg[$n].$split_op[$n];
+      }
+    }
+
+    $result_var = eval("return ($final_formula);");
+
+    return true;
   }
 
   /**
