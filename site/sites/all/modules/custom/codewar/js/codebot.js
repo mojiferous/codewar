@@ -24,7 +24,7 @@ var player_bot;
 })(jQuery, Drupal, this, this.document);
 
 function run_bot(number) {
-  jQuery.get(Drupal.settings.basePath+'/step/'+number, function(data, status) {
+  jQuery.get(Drupal.settings.basePath+'node/'+number+'/step', function(data, status) {
     jQuery('#code_result').append(data+'<br/>');
   });
 //  setTimeout('run_bot('+number+')', 1000);

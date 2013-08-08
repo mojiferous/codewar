@@ -4,4 +4,5 @@ core = 7.x
 package = Codewar
 
 files[] = code_bot.inc
+files[] = evalmath/evalmath.class.php
 files[] = codewar.module

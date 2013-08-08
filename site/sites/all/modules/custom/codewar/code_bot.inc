@@ -4,6 +4,9 @@
  * defines the codebot class
  * 12/20/12 Mojiferous
  */
+
+require_once('evalmath/evalmath.class.php');
+
 class code_bot {
 
   //many of these variables are public so that they store correctly in a $_SESSION variable
@@ -76,13 +79,19 @@ class code_bot {
                   //if the value being assigned is not numeric, figure out what is going on here
                   if(!$this->eval_code($var_val)) {
                     //there has been an error!
-                    _set_array_error($ret_val, 'Assignment error on line #'.$ret_val['line_num']);
+                    _set_array_error($ret_val, 'Assignment error on line #'.$ret_val['line_num'].'. '.$var_val);
+
+                    $var_val = false;
                   }
                 }
 
-                $this->code_array['vars']->$var_name = $var_val;
+                if($var_val !== false) {
+                  //there was a value assigned, otherwise, something went wrong and we set and error
+                  $this->code_array['vars']->$var_name = $var_val;
 
-                $ret_val['assigned '.$var_name] = $var_val;
+                  $ret_val['assigned '.$var_name] = $var_val;
+                }
+
 
               } else {
                 //the variable you are assigning does not exist
@@ -98,9 +107,13 @@ class code_bot {
           case 'endsub':
             //end a sub function and jump back to where you were
             if(isset($this->call_stack) && count($this->call_stack) > 0) {
+              //reverse the call stack, since we want the last position
               array_reverse($this->call_stack);
 
               $this->line_num = array_shift($this->call_stack);
+
+              //re-reverse the array to put it back into the correct order
+              array_reverse($this->call_stack);
             } else {
               //there is nothing in the call stack
               _set_array_error($ret_val, 'Stack underflow error');
@@ -177,8 +190,10 @@ class code_bot {
   }
 
   private function eval_code(&$result_var) {
-    //replace all our vars
+    //put all our vars into an array
     $vars = (array)$this->code_array['vars'];
+    //and the functions
+    $funcs = (array)$this->code_array['system_funcs'];
 
     //split this string by mathematical symbols
     $split_arg = preg_split('/[\s\(\),+*\/-]+|[\.]\s+/', $result_var, -1, PREG_SPLIT_NO_EMPTY);
@@ -191,9 +206,15 @@ class code_bot {
         if(isset($vars[$argument])) {
           //there is a variable by the name of "argument" here
           $split_arg[$key] = $vars[$argument];
+
         } else {
+          if(isset($funcs[$argument])) {
+            //this is a call to a system function, presumably one that returns a value, process it here
+
+
+          }
           //we don't have a value for this, function should error out
-          $result_var = -500;
+          $result_var = 'Variable not found';
           return false;
         }
       }
@@ -221,8 +242,16 @@ class code_bot {
       }
     }
 
-    $result_var = eval("return ($final_formula);");
-
+    //rpn math evaluator, lets us avoid using eval()
+    $m = new EvalMath();
+    $m->suppress_errors = true;
+    $result_var = $m->evaluate('poop = '.$final_formula);
+    if($result_var === false) {
+      //an error has occured
+      $result_var = $m->last_error;
+      return false;
+    }
+    dpm($result_var, 'resulllls');
     return true;
   }
 

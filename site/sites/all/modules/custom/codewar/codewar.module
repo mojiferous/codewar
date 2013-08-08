@@ -14,43 +14,47 @@ require_once('code_bot.inc');
 function codewar_menu() {
   $items = array();
 
-  $items['code/%node'] = array(
+  $items['node/%node/code'] = array(
     'title' => 'Code test output',
     'description' => 'Test output for codewar',
     'page callback' => 'codewar_render_code',
     'page arguments' => array(1),
     'access callback' => true,
     'access arguments' => array(1),
-    'type' => MENU_NORMAL_ITEM,
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
 
-  $items['build/%node'] = array(
+  $items['node/%node/build'] = array(
     'title' => 'Build Code',
     'description' => t('Build code for bot'),
     'page callback' => 'codewar_build_code',
     'page arguments' => array(1),
     'access callback' => true,
     'access arguments' => array(1),
-    'type' => MENU_NORMAL_ITEM,
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
 
-  $items['run/%node'] = array(
+  $items['node/%node/run'] = array(
     'title' => 'Run Code',
     'description' => t('Run code for bot'),
     'page callback' => 'codewar_run_code',
     'page arguments' => array(1),
     'access callback' => true,
     'access arguments' => array(1),
-    'type' => MENU_NORMAL_ITEM,
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
 
-  $items['step/%'] = array(
+  $items['node/%/step'] = array(
     'title' => 'Process',
     'description' => t('Process code for bot'),
     'page callback' => 'codewar_process_code',
     'page arguments' => array(1),
     'access callback' => true,
-    'type' => MENU_NORMAL_ITEM,
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
 
   return $items;
