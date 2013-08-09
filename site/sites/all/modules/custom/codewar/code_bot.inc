@@ -20,6 +20,11 @@ class code_bot {
     'if',
     'endsub',
   ); //< array of language commands
+  private $sys_vars = array(
+    '_x',
+    '_y',
+    '_hp',
+  );
 
   public function __construct($raw_code) {
     $this->body_parts = $raw_code;
@@ -87,9 +92,19 @@ class code_bot {
 
                 if($var_val !== false) {
                   //there was a value assigned, otherwise, something went wrong and we set and error
-                  $this->code_array['vars']->$var_name = $var_val;
 
-                  $ret_val['assigned '.$var_name] = $var_val;
+                  if(in_array($var_name, $this->sys_vars)) {
+                    //this is a system value, we can not assign a value to this within the program
+                    _set_array_error($ret_val, 'Attempt to assign value to system variable '.$var_name.' on line #'.$ret_val['line_num']);
+
+                  } else {
+                    //this is a user var, assign it
+                    $this->code_array['vars']->$var_name = $var_val;
+
+                    $ret_val['assigned '.$var_name] = $var_val;
+                  }
+
+
                 }
 
 
@@ -169,10 +184,28 @@ class code_bot {
             break;
           case 'if':
             //if statement
+            if(isset($line_val[1])) {
+              //make sure we have a test value, which will be in $line_val[1]
+              //@todo finish coding this, now correctly separating test values
+              dpm($line_val[1], 'lurn vul');
+              preg_match_all("/(.*?)([<>!=]+)(.*)/is", $line_val[1], $matches);
+              dpm($matches, 'murches');
+            }
+
             break;
 
           case 'sysfunc':
             //sets system functions
+            if(isset($line_val[1]) && isset($line_val[2])) {
+              $ret_val[$line_val[1].' result: '] = $this->call_sys_func($line_val[1], $line_val[2]);
+
+              if(!$ret_val && isset($this->code_array['errors'])) {
+                _set_array_error($ret_val, 'Call to system function '.$line_val[1].' on line #'.$ret_val['line_num'].' threw error '.$ret_val[$line_val[1].' result: ']);
+              }
+            } else {
+              _set_array_error($ret_val, 'Call to system function on line #'.$ret_val['line_num'].' failed');
+            }
+
             break;
           default:
             break;
@@ -189,6 +222,11 @@ class code_bot {
     return array('ERROR' => 'No code!');
   }
 
+  /**
+   * evaluates $result_var as a mathematical function, replacing system variables
+   * @param $result_var
+   * @return bool
+   */
   private function eval_code(&$result_var) {
     //put all our vars into an array
     $vars = (array)$this->code_array['vars'];
@@ -197,6 +235,40 @@ class code_bot {
 
     //split this string by mathematical symbols
     $split_arg = preg_split('/[\s\(\),+*\/-]+|[\.]\s+/', $result_var, -1, PREG_SPLIT_NO_EMPTY);
+
+    $had_change = false;
+    //before the function can be split up, we have to look for system functions to replace
+    foreach ($split_arg as $argument) {
+      //this should be a system function, like shoot or aim
+      if (preg_match_all("/(.*?)(\\[.*?\\])/is", $argument, $matches) ) {
+        if(count($matches) > 1 && isset($matches[1][0]) && isset($matches[2][0])) {
+          //set values for the function call from the regex result
+          $repl_value = $this->call_sys_func($matches[1][0], $matches[2][0]);
+
+          if($repl_value === false) {
+            //there was an error during the sys_func call
+            if(isset($this->code_array['errors'])) {
+              $result_var = $this->code_array['errors'][0];
+              unset($this->code_array['errors']);
+            }
+            return false;
+          } else {
+            $result_var = str_replace($argument, $repl_value, $result_var);
+            $had_change = true;
+          }
+
+
+        }
+
+      }
+    }
+
+    if($had_change) {
+      //there were system functions replaced here, re-split the result var by math symbols
+      $split_arg = preg_split('/[\s\(\),+*\/-]+|[\.]\s+/', $result_var, -1, PREG_SPLIT_NO_EMPTY);
+    }
+
+
     //split the string into mathematical operators
     $split_op = preg_split('/[a-z\d_]/', $result_var, -1, PREG_SPLIT_NO_EMPTY);
 
@@ -208,11 +280,6 @@ class code_bot {
           $split_arg[$key] = $vars[$argument];
 
         } else {
-          if(isset($funcs[$argument])) {
-            //this is a call to a system function, presumably one that returns a value, process it here
-
-
-          }
           //we don't have a value for this, function should error out
           $result_var = 'Variable not found';
           return false;
@@ -245,14 +312,58 @@ class code_bot {
     //rpn math evaluator, lets us avoid using eval()
     $m = new EvalMath();
     $m->suppress_errors = true;
-    $result_var = $m->evaluate('poop = '.$final_formula);
+    $result_var = $m->evaluate($final_formula);
     if($result_var === false) {
       //an error has occured
       $result_var = $m->last_error;
       return false;
     }
-    dpm($result_var, 'resulllls');
+
     return true;
+  }
+
+  /**
+   * calls a system function with a value
+   * @param $func_name
+   * @param $passed_val
+   * @return bool|int
+   */
+  private function call_sys_func($func_name, $passed_val) {
+    $ret_val = false;
+
+    preg_match_all("/\\[(.*?)\\]/is", $passed_val, $matches);
+    if(isset($matches[1][0])) {
+      //this value has been passed through as [val] just get what is between the braces
+      $passed_val = $matches[1][0];
+    }
+
+    if(!$this->eval_code($passed_val)) {
+      $this->add_error($passed_val);
+      return false;
+    }
+
+    switch($func_name) {
+      case '_move':
+        //move the bot along cardinal direction
+        break;
+      case '_look':
+        //look direction, returns distance to nearest target, or 0 if no target found
+        $ret_val = 10;
+        break;
+      case '_feel':
+        //"feel" direction, returns the terrain value of the direction
+        break;
+      case '_sword':
+        //attack with the sword in direction
+        break;
+      case '_arrow':
+        //attack with the bow and arrow in direction
+        break;
+      default:
+        break;
+    }
+
+    return $ret_val;
   }
 
   /**
@@ -302,14 +413,19 @@ class code_bot {
                 //these are commands, make the line an array
 
                 //search for commands within parenthesis, which should only occur in IF statements
-                if($words[0] == 'if' && preg_match_all("/(\\(.*\\))/is", $this_command, $matches)) {
-                  if(isset($matches[1])) {
-                    $orig = $matches[1];
-                    $new_parse = str_ireplace(' ', '', $orig);
+                if($words[0] == 'if') {
+                  preg_match_all("/(.*)\\((.*)\\)(.*)/is", $this_command, $matches);
+                  if(isset($matches[2][0]) && isset($matches[3][0])) {
+                    //make sure we have a test and a result for the if
+                    $words = array(0 =>'if', 1 => $matches[2][0]);
 
-                    $this_command = str_ireplace($orig, $new_parse, $this_command);
+                    //trim the blank space before and after the result commands
+                    $matches[3][0] = trim($matches[3][0]);
+                    $results = explode(' ', $matches[3][0]);
+                    foreach ($results as $comms) {
+                      $words[] = $comms;
+                    }
 
-                    $words = explode(' ', $this_command);
                   }
                 }
 
@@ -335,8 +451,6 @@ class code_bot {
                     if(count($matches) > 1 && isset($matches[1][0]) && isset($matches[2][0])) {
                       //set values for the function call from the regex result
                       $this->code_array[$line_num] = array('sysfunc', $matches[1][0], str_ireplace('[', '', str_ireplace(']', '', $matches[2][0])));
-
-
                     }
 
                   }
@@ -365,13 +479,16 @@ class code_bot {
    */
   private function set_system_vars() {
     //system variables
-    $this->code_array['vars']['_x'] = 0;
-    $this->code_array['vars']['_y'] = 0;
-    $this->code_array['vars']['_aim'] = 0;
+    foreach ($this->sys_vars as $var_name) {
+      $this->code_array['vars'][$var_name] = 0;
+    }
 
     //system functions, also set with assignment -- these are similar to above, but either have a result or return a value,
-    $this->code_array['system_funcs']['_shoot'] = 0;
+    $this->code_array['system_funcs']['_move'] = 0;
     $this->code_array['system_funcs']['_look'] = 0;
+    $this->code_array['system_funcs']['_feel'] = 0;
+    $this->code_array['system_funcs']['_sword'] = 0;
+    $this->code_array['system_funcs']['_arrow'] = 0;
   }
 
   /**
@@ -379,7 +496,7 @@ class code_bot {
    * @param string $error_string
    */
   private function add_error($error_string) {
-    $this->code_array['errors'][] = $error_string.' on line #'.$this->line_num;
+    $this->code_array['errors'][] = $error_string.' on line #'.($this->line_num-1);
   }
 
   /**
@@ -404,6 +521,41 @@ class code_bot {
     }
 
     return '';
+  }
+
+  /**
+   * set the bots location
+   * @param $x
+   * @param $y
+   */
+  public function set_location($x, $y) {
+    $this->code_array['vars']->_x = $x;
+    $this->code_array['vars']->_y = $y;
+  }
+
+  /**
+   * sets the bot hp
+   * @param $value
+   */
+  public function set_hp($value) {
+    $this->code_array['vars']->_hp = $value;
+  }
+
+  /**
+   * returns array of current location
+   * @return array
+   */
+  public function return_location() {
+    $ret_val = array();
+
+    $ret_val['x'] = $this->code_array['vars']->_x;
+    $ret_val['y'] = $this->code_array['vars']->_y;
+
+    return $ret_val;
+  }
+
+  public function return_hp() {
+    return $this->code_array['vars']->_hp;
   }
 
 }
