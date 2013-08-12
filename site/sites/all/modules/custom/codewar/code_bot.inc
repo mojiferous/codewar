@@ -67,150 +67,7 @@ class code_bot {
       dpm(json_encode($line_val), 'this line'); dpm($this->code_array, 'full array');
 
       if(isset($line_val[0])) {
-
-        switch($line_val[0]) {
-          case 'assign':
-            //variable assignment
-            if(isset($line_val[1]) && isset($line_val[2])) {
-              //make sure we have values for the assignment
-
-              //trim blank space
-              $var_name = trim($line_val[1]);
-              $var_val = trim($line_val[2]);
-
-              if(isset($this->code_array['vars']->$var_name)) {
-
-                if(!is_numeric($var_val)) {
-                  //if the value being assigned is not numeric, figure out what is going on here
-                  if(!$this->eval_code($var_val)) {
-                    //there has been an error!
-                    _set_array_error($ret_val, 'Assignment error on line #'.$ret_val['line_num'].'. '.$var_val);
-
-                    $var_val = false;
-                  }
-                }
-
-                if($var_val !== false) {
-                  //there was a value assigned, otherwise, something went wrong and we set and error
-
-                  if(in_array($var_name, $this->sys_vars)) {
-                    //this is a system value, we can not assign a value to this within the program
-                    _set_array_error($ret_val, 'Attempt to assign value to system variable '.$var_name.' on line #'.$ret_val['line_num']);
-
-                  } else {
-                    //this is a user var, assign it
-                    $this->code_array['vars']->$var_name = $var_val;
-
-                    $ret_val['assigned '.$var_name] = $var_val;
-                  }
-
-
-                }
-
-
-              } else {
-                //the variable you are assigning does not exist
-                _set_array_error($ret_val, 'Invalid variable assignment on line #'.$ret_val['line_num'].'. Variable '.$var_name.' does not exist');
-              }
-
-            } else {
-              //something isn't right here
-              _set_array_error($ret_val, 'Invalid assignment or code on line #'.$ret_val['line_num']);
-            }
-
-            break;
-          case 'endsub':
-            //end a sub function and jump back to where you were
-            if(isset($this->call_stack) && count($this->call_stack) > 0) {
-              //reverse the call stack, since we want the last position
-              array_reverse($this->call_stack);
-
-              $this->line_num = array_shift($this->call_stack);
-
-              //re-reverse the array to put it back into the correct order
-              array_reverse($this->call_stack);
-            } else {
-              //there is nothing in the call stack
-              _set_array_error($ret_val, 'Stack underflow error');
-            }
-
-            break;
-          case 'goto':
-            //jump to new function without return ability
-
-            $func_name = trim($line_val[1]);
-
-            if(isset($line_val[1])) {
-              if(isset($this->code_array['funcs']->$func_name)) {
-                //the next line will be the head of the function
-
-                $this->line_num = $this->code_array['funcs']->$func_name;
-
-              } else {
-                //the function this goto was pointing to does not exist
-                _set_array_error($ret_val, 'The function '.$func_name.' on line #'.$ret_val['line_num'].' does not exist');
-              }
-
-            } else {
-              //there is no goto value, break here
-              _set_array_error($ret_val, 'Attempt to goto nothing on line #'.$ret_val['line_num'].'. Very nihilistic.');
-            }
-
-            break;
-          case 'gosub':
-            //jump to sub function
-
-            $func_name = $line_val[1];
-
-            if(isset($line_val[1])) {
-              if(isset($this->code_array['funcs']->$func_name)) {
-                //the next line will be the head of the function
-
-                //add the next line as the "return"
-                $this->call_stack[] = $this->line_num++;
-
-                $this->line_num = $this->code_array['funcs']->$func_name;
-
-              } else {
-                //the function this goto was pointing to does not exist
-                _set_array_error($ret_val, 'The function '.$func_name.' on line #'.$ret_val['line_num'].' does not exist');
-              }
-
-            } else {
-              //there is no goto value, break here
-              _set_array_error($ret_val, 'Attempt to gosub nothing on line #'.$ret_val['line_num'].'. Very nihilistic.');
-            }
-
-            break;
-          case 'if':
-            //if statement
-            if(isset($line_val[1])) {
-              //make sure we have a test value, which will be in $line_val[1]
-              //@todo finish coding this, now correctly separating test values
-              dpm($line_val[1], 'lurn vul');
-              preg_match_all("/(.*?)([<>!=]+)(.*)/is", $line_val[1], $matches);
-              dpm($matches, 'murches');
-            }
-
-            break;
-
-          case 'sysfunc':
-            //sets system functions
-            if(isset($line_val[1]) && isset($line_val[2])) {
-              $ret_val[$line_val[1].' result: '] = $this->call_sys_func($line_val[1], $line_val[2]);
-
-              if(!$ret_val && isset($this->code_array['errors'])) {
-                _set_array_error($ret_val, 'Call to system function '.$line_val[1].' on line #'.$ret_val['line_num'].' threw error '.$ret_val[$line_val[1].' result: ']);
-              }
-            } else {
-              _set_array_error($ret_val, 'Call to system function on line #'.$ret_val['line_num'].' failed');
-            }
-
-            break;
-          default:
-            break;
-        }
-
+        $this->run_line($line_val, $ret_val);
       } elseif ($zero_counter == 0) {
         //for some reason the code here was not parsed correctly, should not happen, but if it does, break here
         _set_array_error($ret_val, 'Unable to parse code at line #'.$this->line_num);
@@ -220,6 +77,266 @@ class code_bot {
     }
 
     return array('ERROR' => 'No code!');
+  }
+
+  /**
+   * actual processing function for a line of code
+   * @param $line_val
+   * @param $ret_val
+   */
+  private function run_line($line_val, &$ret_val) {
+    if(isset($line_val[0])) {
+
+      switch($line_val[0]) {
+        case 'assign':
+          //variable assignment
+          if(isset($line_val[1]) && isset($line_val[2])) {
+            //make sure we have values for the assignment
+
+            //trim blank space
+            $var_name = trim($line_val[1]);
+            $var_val = trim($line_val[2]);
+
+            if(isset($this->code_array['vars']->$var_name)) {
+
+              if(!is_numeric($var_val)) {
+                //if the value being assigned is not numeric, figure out what is going on here
+                if(!$this->eval_code($var_val)) {
+                  //there has been an error!
+                  _set_array_error($ret_val, 'Assignment error on line #'.$ret_val['line_num'].'. '.$var_val);
+
+                  $var_val = false;
+                }
+              }
+
+              if($var_val !== false) {
+                //there was a value assigned, otherwise, something went wrong and we set and error
+
+                if(in_array($var_name, $this->sys_vars)) {
+                  //this is a system value, we can not assign a value to this within the program
+                  _set_array_error($ret_val, 'Attempt to assign value to system variable '.$var_name.' on line #'.$ret_val['line_num']);
+
+                } else {
+                  //this is a user var, assign it
+                  $this->code_array['vars']->$var_name = $var_val;
+
+                  $ret_val['assigned '.$var_name] = $var_val;
+                }
+
+
+              }
+
+
+            } else {
+              //the variable you are assigning does not exist
+              _set_array_error($ret_val, 'Invalid variable assignment on line #'.$ret_val['line_num'].'. Variable '.$var_name.' does not exist');
+            }
+
+          } else {
+            //something isn't right here
+            _set_array_error($ret_val, 'Invalid assignment or code on line #'.$ret_val['line_num']);
+          }
+
+          break;
+        case 'endsub':
+          //end a sub function and jump back to where you were
+          if(isset($this->call_stack) && count($this->call_stack) > 0) {
+            //reverse the call stack, since we want the last position
+            array_reverse($this->call_stack);
+
+            $this->line_num = array_shift($this->call_stack);
+
+            //re-reverse the array to put it back into the correct order
+            array_reverse($this->call_stack);
+          } else {
+            //there is nothing in the call stack
+            _set_array_error($ret_val, 'Stack underflow error');
+          }
+
+          break;
+        case 'goto':
+          //jump to new function without return ability
+
+          $func_name = trim($line_val[1]);
+
+          if(isset($line_val[1])) {
+            if(isset($this->code_array['funcs']->$func_name)) {
+              //the next line will be the head of the function
+
+              $this->line_num = $this->code_array['funcs']->$func_name;
+
+            } else {
+              //the function this goto was pointing to does not exist
+              _set_array_error($ret_val, 'The function '.$func_name.' on line #'.$ret_val['line_num'].' does not exist');
+            }
+
+          } else {
+            //there is no goto value, break here
+            _set_array_error($ret_val, 'Attempt to goto nothing on line #'.$ret_val['line_num'].'. Very nihilistic.');
+          }
+
+          break;
+        case 'gosub':
+          //jump to sub function
+
+          $func_name = $line_val[1];
+
+          if(isset($line_val[1])) {
+            if(isset($this->code_array['funcs']->$func_name)) {
+              //the next line will be the head of the function
+
+              //add the next line as the "return"
+              $this->call_stack[] = $this->line_num++;
+
+              $this->line_num = $this->code_array['funcs']->$func_name;
+
+            } else {
+              //the function this goto was pointing to does not exist
+              _set_array_error($ret_val, 'The function '.$func_name.' on line #'.$ret_val['line_num'].' does not exist');
+            }
+
+          } else {
+            //there is no goto value, break here
+            _set_array_error($ret_val, 'Attempt to gosub nothing on line #'.$ret_val['line_num'].'. Very nihilistic.');
+          }
+
+          break;
+        case 'if':
+          //if statement
+          if(isset($line_val[1])) {
+            //make sure we have a test value, which will be in $line_val[1]
+
+            //split the test value along the standard test vals
+            preg_match_all("/(.*?)([<>!=]+)(.*)/is", $line_val[1], $matches);
+            if(isset($matches[1][0]) && isset($matches[3][0]) && !empty($matches[1][0]) && !empty($matches[3][0])) {
+              //make sure we have matches for these arguments
+              $first_test = $matches[1][0];
+              $second_test = $matches[3][0];
+
+              if(!is_numeric($first_test) && !$this->eval_code($first_test)) {
+                //our first logical test failed
+                _set_array_error($ret_val, 'Error testing if logic on line #'.$ret_val['line_num'].'. '.$first_test);
+              } else {
+                //our first logical test passed
+                if(!is_numeric($second_test) && !$this->eval_code($second_test)) {
+                  //our second logical test failed
+                  _set_array_error($ret_val, 'Error testing if logic on line #'.$ret_val['line_num'].'. '.$second_test);
+                } else {
+                  //both of our logical tests passed
+
+                  if(isset($matches[2][0]) && $this->eval_logic($first_test, $second_test, $matches[2][0])) {
+                    //our test is set and has passed as true, evaluate the rest of the line
+
+                    //slice off the first two commands on this line
+                    $line_val = array_slice($line_val, 2);
+
+                    $this->run_line($line_val, $ret_val);
+                  }
+
+                }
+              }
+
+            } else {
+              //this is a different logical test
+
+              if(empty($matches[1][0]) && !empty($matches[2][0]) && !empty($matches[3][0])) {
+                //this should be a ! logical test
+                if($matches[2][0] == '!') {
+                  if(!$this->eval_code($matches[3][0])) {
+                    //the test returned false, meaning our test is actually true
+
+                    //slice off the first two commands on this line
+                    $line_val = array_slice($line_val, 2);
+
+                    $this->run_line($line_val, $ret_val);
+                  }
+                }
+              } else {
+                //all our matches are empty -- meaning this should just be a straight logical test
+
+                if($this->eval_code($line_val[1])) {
+                  //this test was true
+
+                  //slice off the first two commands on this line
+                  $line_val = array_slice($line_val, 2);
+
+                  $this->run_line($line_val, $ret_val);
+                }
+              }
+
+            }
+
+
+          }
+
+          break;
+
+        case 'sysfunc':
+          //sets system functions
+          if(isset($line_val[1]) && isset($line_val[2])) {
+            $ret_val[$line_val[1].' result: '] = $this->call_sys_func($line_val[1], $line_val[2]);
+
+            if(!$ret_val && isset($this->code_array['errors'])) {
+              _set_array_error($ret_val, 'Call to system function '.$line_val[1].' on line #'.$ret_val['line_num'].' threw error '.$ret_val[$line_val[1].' result: ']);
+            }
+          } else {
+            _set_array_error($ret_val, 'Call to system function on line #'.$ret_val['line_num'].' failed');
+          }
+
+          break;
+        default:
+          break;
+      }
+
+    } else {
+      //for some reason the code here was not parsed correctly, should not happen, but if it does, break here
+      _set_array_error($ret_val, 'Unable to parse code at line #'.$this->line_num);
+    }
+  }
+
+  /**
+   * evaluates logical comparisons between val1 and val2, avoiding eval() for security reasons
+   * @param $val1
+   * @param $val2
+   * @param $logic
+   * @return bool
+   */
+  private function eval_logic($val1, $val2, $logic) {
+    $ret_val = false;
+
+    switch($logic) {
+      case '==':
+        if($val1 == $val2) {
+          $ret_val = true;
+        }
+        break;
+      case '>':
+        if($val1 > $val2) {
+          $ret_val = true;
+        }
+        break;
+      case '>=':
+        if($val1 >= $val2) {
+          $ret_val = true;
+        }
+        break;
+      case '<':
+        if($val1 < $val2) {
+          $ret_val = true;
+        }
+        break;
+      case '<=':
+        if($val1 <= $val2) {
+          $ret_val = true;
+        }
+        break;
+      case '!=':
+        if($val1 != $val2) {
+          $ret_val = true;
+        }
+    }
+
+    return $ret_val;
   }
 
   /**
