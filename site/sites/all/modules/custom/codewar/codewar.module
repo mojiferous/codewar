@@ -6,6 +6,7 @@
  */
 
 require_once('code_bot.inc');
+require_once('code_map.inc');
 
 /**
  * implements hook_menu()

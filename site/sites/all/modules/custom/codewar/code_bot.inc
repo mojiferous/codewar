@@ -26,6 +26,10 @@ class code_bot {
     '_hp',
   );
 
+  /**
+   * object constructor
+   * @param string $raw_code
+   */
   public function __construct($raw_code) {
     $this->body_parts = $raw_code;
     $this->line_num = 0;
@@ -81,8 +85,8 @@ class code_bot {
 
   /**
    * actual processing function for a line of code
-   * @param $line_val
-   * @param $ret_val
+   * @param string $line_val
+   * @param string|int $ret_val
    */
   private function run_line($line_val, &$ret_val) {
     if(isset($line_val[0])) {
@@ -296,9 +300,9 @@ class code_bot {
 
   /**
    * evaluates logical comparisons between val1 and val2, avoiding eval() for security reasons
-   * @param $val1
-   * @param $val2
-   * @param $logic
+   * @param int $val1
+   * @param int $val2
+   * @param string $logic
    * @return bool
    */
   private function eval_logic($val1, $val2, $logic) {
@@ -341,7 +345,7 @@ class code_bot {
 
   /**
    * evaluates $result_var as a mathematical function, replacing system variables
-   * @param $result_var
+   * @param string|int $result_var
    * @return bool
    */
   private function eval_code(&$result_var) {
@@ -441,8 +445,8 @@ class code_bot {
 
   /**
    * calls a system function with a value
-   * @param $func_name
-   * @param $passed_val
+   * @param string $func_name
+   * @param string $passed_val
    * @return bool|int
    */
   private function call_sys_func($func_name, $passed_val) {
@@ -642,8 +646,8 @@ class code_bot {
 
   /**
    * set the bots location
-   * @param $x
-   * @param $y
+   * @param int $x
+   * @param int $y
    */
   public function set_location($x, $y) {
     $this->code_array['vars']->_x = $x;
@@ -652,7 +656,7 @@ class code_bot {
 
   /**
    * sets the bot hp
-   * @param $value
+   * @param int $value
    */
   public function set_hp($value) {
     $this->code_array['vars']->_hp = $value;
@@ -671,6 +675,10 @@ class code_bot {
     return $ret_val;
   }
 
+  /**
+   * returns a bots current hp
+   * @return mixed
+   */
   public function return_hp() {
     return $this->code_array['vars']->_hp;
   }
@@ -679,8 +687,8 @@ class code_bot {
 
 /**
  * simple helper function to set an error value in the return array when running code
- * @param $val_array
- * @param $error_code
+ * @param array $val_array
+ * @param string $error_code
  */
 function _set_array_error(&$val_array, $error_code) {
   $val_array['ERROR'] = $error_code;
