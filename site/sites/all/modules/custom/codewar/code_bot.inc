@@ -36,10 +36,24 @@ class code_bot {
   }
 
   /**
+   * rebuild a code bot from cached data
+   * @param $cached_data
+   */
+  public function rebuild_from_cache($cached_data) {
+    if(isset($cached_data->code_array) && isset($cached_data->line_num) && isset($cached_data->call_stack)) {
+      $this->code_array = $cached_data->code_array;
+      $this->line_num = $cached_data->line_num;
+      $this->call_stack = $cached_data->call_stack;
+    }
+  }
+
+  /**
    * run the bots code
    */
   public function run_code() {
-    if(isset($this->code_array) && count($this->code_array) > 0) {
+    $this->check_code_array();
+
+    if(isset($this->code_array) && count($this->code_array['code']) > 0) {
       //we actually have something here
 
       $ret_val = array();
@@ -50,7 +64,7 @@ class code_bot {
         //skip over empty lines, which the compiler spits out to allow for proper error checking
 
         //reset the counter back to 0
-        if($this->line_num >= count($this->code_array)) {
+        if($this->line_num >= count($this->code_array['code'])) {
           $this->line_num = 0;
           $zero_counter++;
 
@@ -61,7 +75,7 @@ class code_bot {
           }
         }
 
-        $line_val = $this->code_array[$this->line_num];
+        $line_val = $this->code_array['code'][$this->line_num];
         $this->line_num++;
 
       } while (empty($line_val));
@@ -500,7 +514,7 @@ class code_bot {
 
       //every line should have a value, even if empty -- the run should just ignore count() == 0 elements
       //this allows our errors to correspond to an actual line in the code and not a compiled line
-      $this->code_array[$line_num] = array();
+      $this->code_array['code'][$line_num] = array();
 
       if(!empty($this_command)) {
 
@@ -550,7 +564,7 @@ class code_bot {
                   }
                 }
 
-                $this->code_array[$line_num] = $words;
+                $this->code_array['code'][$line_num] = $words;
               } else {
 
                 if(stripos($this_command, '=') !== false) {
@@ -564,14 +578,14 @@ class code_bot {
 
                   array_unshift($words, 'assign');
 
-                  $this->code_array[$line_num] = $words;
+                  $this->code_array['code'][$line_num] = $words;
                 } else {
 
                   //this should be a system function, like shoot or aim
                   if (preg_match_all("/(.*?)(\\[.*?\\])/is", $this_command, $matches) ) {
                     if(count($matches) > 1 && isset($matches[1][0]) && isset($matches[2][0])) {
                       //set values for the function call from the regex result
-                      $this->code_array[$line_num] = array('sysfunc', $matches[1][0], str_ireplace('[', '', str_ireplace(']', '', $matches[2][0])));
+                      $this->code_array['code'][$line_num] = array('sysfunc', $matches[1][0], str_ireplace('[', '', str_ireplace(']', '', $matches[2][0])));
                     }
 
                   }
@@ -645,11 +659,30 @@ class code_bot {
   }
 
   /**
+   * decode the code array if it is still encoded as json
+   */
+  private function check_code_array() {
+    if(is_array($this->code_array) && count($this->code_array) == 1 && is_string($this->code_array[0])) {
+      //the code array is still a string
+      if(is_string($this->code_array[0])) {
+        $this->code_array = json_decode($this->code_array[0]);
+      }
+    }
+
+    if(!is_array($this->code_array)) {
+      $this->code_array = (array)$this->code_array;
+    }
+
+  }
+
+  /**
    * set the bots location
    * @param int $x
    * @param int $y
    */
   public function set_location($x, $y) {
+    $this->check_code_array();
+
     $this->code_array['vars']->_x = $x;
     $this->code_array['vars']->_y = $y;
   }
@@ -659,6 +692,8 @@ class code_bot {
    * @param int $value
    */
   public function set_hp($value) {
+    $this->check_code_array();
+
     $this->code_array['vars']->_hp = $value;
   }
 
@@ -667,6 +702,7 @@ class code_bot {
    * @return array
    */
   public function return_location() {
+    $this->check_code_array();
     $ret_val = array();
 
     $ret_val['x'] = $this->code_array['vars']->_x;
@@ -680,6 +716,7 @@ class code_bot {
    * @return mixed
    */
   public function return_hp() {
+    $this->check_code_array();
     return $this->code_array['vars']->_hp;
   }
 

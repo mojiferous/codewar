@@ -15,28 +15,6 @@ require_once('code_map.inc');
 function codewar_menu() {
   $items = array();
 
-  $items['node/%node/code'] = array(
-    'title' => 'Code test output',
-    'description' => 'Test output for codewar',
-    'page callback' => 'codewar_render_code',
-    'page arguments' => array(1),
-    'access callback' => true,
-    'access arguments' => array(1),
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
-  );
-
-  $items['node/%node/build'] = array(
-    'title' => 'Build Code',
-    'description' => t('Build code for bot'),
-    'page callback' => 'codewar_build_code',
-    'page arguments' => array(1),
-    'access callback' => true,
-    'access arguments' => array(1),
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
-  );
-
   $items['node/%node/run'] = array(
     'title' => 'Run Code',
     'description' => t('Run code for bot'),
@@ -48,23 +26,22 @@ function codewar_menu() {
     'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
 
-  $items['node/%/step'] = array(
+  $items['code/%/step'] = array(
     'title' => 'Process',
     'description' => t('Process code for bot'),
     'page callback' => 'codewar_process_code',
     'page arguments' => array(1),
     'access callback' => true,
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+    'type' => MENU_NORMAL_ITEM,
   );
 
   return $items;
 }
 
 /**
- * builds the code from the body into a json array and saves it to the output field
+ * builds the code from the body of a node into a json array and saves it to the output field, returns the resulting bot
  * @param $node
- * @return string
+ * @return code_bot
  */
 function codewar_build_code($node) {
   //load the node body
@@ -81,42 +58,48 @@ function codewar_build_code($node) {
   //parse the code and transform it into a json array, this is the "built code"
   $this_code = new code_bot($body_parts);
   $this_code->parse_code();
+
   $code_array = json_encode($this_code->code_array);
 
+  $this_code->code_array = (array)$code_array;
 
   //save the new value onto the node
   $node->field_output[LANGUAGE_NONE][0]['value'] = $code_array;
   node_save($node);
 
-  return 'CODE BUILT';
+  return $this_code;
 }
 
 /**
  * run the codebot
- * @todo add "build and run" to this, so the code is always up to date
  * @param $node
  * @return string
  */
 function codewar_run_code($node) {
-  $raw_code = field_get_items('node', $node, 'field_output');
+  //build the current code
+  $this_code = codewar_build_code($node);
 
-  if(isset($raw_code[0])) {
-    $raw_code = json_decode($raw_code[0]['value']);
-  }
+  $this_map = new code_map();
 
-  $this_code = new code_bot('');
-  $this_code->code_array = (array)$raw_code;
+  $this_map->add_new_bot($this_code, 100);
 
-  if(isset($node->nid)) {
-    $_SESSION['code_bot_'.$node->nid] = $this_code;
+  //the session and cache data for this map uses the current user and the node ids to keep everything unique
+  //and to prevent collisions
+  global $user;
+  $cache_vals = $user->uid.'*'.$node->nid;
 
-    drupal_add_js(array('bot_1' => $node->nid), 'setting');
+  $cache_data = json_encode($this_map);
 
-    $path = drupal_get_path('module', 'codewar');
-    drupal_add_js($path.'/js/codebot.js');
+  //set session variables and cache
+  $_SESSION['code_bot*'.$cache_vals] = $cache_data;
 
-  }
+  cache_clear_all('code_bot*'.$cache_vals, 'cache', true);
+  cache_set('code_bot*'.$cache_vals, $cache_data, 'cache');
 
+  drupal_add_js(array('cache_val' => $cache_vals), 'setting');
+
+  $path = drupal_get_path('module', 'codewar');
+  drupal_add_js($path.'/js/codebot.js');
 
   return '<div id="code_result">CODE:<br/></div>';
 }
@@ -129,14 +112,24 @@ function codewar_run_code($node) {
 function codewar_process_code($session_value) {
   $ret_val = '00';
 
-  if(isset($_SESSION['code_bot_'.$session_value])) {
-    //there is actually a local value for this session variable, set our codebot to it
-    $this_code = $_SESSION['code_bot_'.$session_value];
+  $session_data = false;
 
-    $ret_val = $this_code->run_code();
-
-    $_SESSION['code_bot_'.$session_value] = $this_code;
+  if(isset($_SESSION['code_bot*'.$session_value])) {
+    $session_data = $_SESSION['code_bot*'.$session_value];
+  } else {
+    $session_data = cache_get('code_bot*'.$session_value);
   }
+
+  if($session_data) {
+    //there was data in either the session or the cache
+    $this_map = json_decode($session_data);
+    $this_map = new code_map($this_map);
+    $this_map->handle_bot_turns();
+
+    $session_data = json_encode($this_map);
+  }
+
+  $_SESSION['code_bot*'.$session_value] = $session_data;
 
   return json_encode($ret_val);
   drupal_json_output($ret_val);

@@ -14,10 +14,19 @@ require_once('code_bot.inc');
 
 class code_map {
 
-  private $map = array(); //<array of map values, [x][y][level] where level 0==terrain 1==bots 2==bombs/shots/etc.
-  private $bots = array(); //<array of code_bot objects
+  public $map = array(); //<array of map values, [x][y][level] where level 0==terrain 1==bots 2==bombs/shots/etc.
+  public $bots = array(); //<array of code_bot objects
 
-  public function __construct() {
+  public function __construct($cached_data = null) {
+    if($cached_data) {
+      if(isset($cached_data->map) && isset($cached_data->bots)) {
+        $this->map = $cached_data->map;
+        $this->bots = $cached_data->bots;
+      }
+
+    } else {
+      $this->new_map();
+    }
 
   }
 
@@ -82,7 +91,12 @@ class code_map {
    */
   public function handle_bot_turns() {
     for($n=0; $n<count($this->bots); $n++) {
-      $result_code = $this->bots[$n]->run_code;
+      $this_bot = new code_bot('');
+      $this_bot->rebuild_from_cache($this->bots[$n]);
+
+      $result_code = $this_bot->run_code();
+
+      $this->bots[$n] = $this_bot;
 
       dpm($result_code);
     }

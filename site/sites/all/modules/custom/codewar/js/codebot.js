@@ -9,23 +9,21 @@ var player_bot;
 
   Drupal.behaviors.codeBot = {
     attach: function (context) {
-      if(Drupal.settings.bot_1) {
-        run_bot(Drupal.settings.bot_1);
+      if(Drupal.settings.cache_val) {
+//        run_bots(Drupal.settings.cache_val);
       }
     }
   };
 
-  /**
-   * run a codebot line for bot # number
-   * @param number int
-   */
-
-
 })(jQuery, Drupal, this, this.document);
 
-function run_bot(number) {
-  jQuery.get(Drupal.settings.basePath+'node/'+number+'/step', function(data, status) {
+/**
+ * run a codebot line for all bots, passed a cache name
+ * @param cache_name int
+ */
+function run_bots(cache_name) {
+  jQuery.get(Drupal.settings.basePath+'code/'+cache_name+'/step', function(data, status) {
     jQuery('#code_result').append(data+'<br/>');
   });
-//  setTimeout('run_bot('+number+')', 1000);
+//  setTimeout('run_bots('+cache_name+')', 1000);
 }
