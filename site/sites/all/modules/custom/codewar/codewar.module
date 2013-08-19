@@ -32,6 +32,17 @@ function codewar_menu() {
     'page callback' => 'codewar_process_code',
     'page arguments' => array(1),
     'access callback' => true,
+    'access arguments' => array(1),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['code/%node/edit'] = array(
+    'title' => 'Edit Code',
+    'description' => t('Edit code for bot'),
+    'page callback' => 'codewar_render_code',
+    'page arguments' => array(1),
+    'access callback' => true,
+    'access arguments' => array(1),
     'type' => MENU_NORMAL_ITEM,
   );
 
@@ -142,23 +153,20 @@ function codewar_process_code($session_value) {
  */
 function codewar_render_code($node) {
   $this_body = field_get_items('node', $node, 'body');
+  dpm($node);
   $raw_body = '';
 
   if(isset($this_body[0])) {
     $raw_body = $this_body[0]['value'];
   }
 
-  //divide the body into lines
-  $body_parts = preg_split("/\r\n|\n|\r/", $raw_body);
+  //add the ace wrapper
+  $output = '<div id="code-body">'.$raw_body.'</div>';
 
-  $output = '';
-
-  $this_code = new code_bot($body_parts);
-  $this_code->parse_code();
-  $code_array = $this_code->code_array;
-
-
-  dpm($code_array, 'code array');
+  //add all of our javascript, including the no-conflict minimized ace, and the custom js that sets our editor and the ace settings
+  $path = drupal_get_path('module', 'codewar');
+  drupal_add_js($path.'/ace/ace.js');
+  drupal_add_js($path.'/js/codebot_edit.js');
 
   return $output;
 }
