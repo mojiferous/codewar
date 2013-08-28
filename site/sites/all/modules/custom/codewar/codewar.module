@@ -46,6 +46,16 @@ function codewar_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
 
+  $items['code/%node/icons'] = array(
+    'title' => 'Edit Icons',
+    'description' => t('Edit icons for bot'),
+    'page callback' => 'codewar_edit_icons_page',
+    'page arguments' => array(1),
+    'access callback' => true,
+    'access arguments' => array(1),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
   return $items;
 }
 
@@ -153,7 +163,6 @@ function codewar_process_code($session_value) {
  */
 function codewar_render_code($node) {
   $this_body = field_get_items('node', $node, 'body');
-  dpm($node);
   $raw_body = '';
 
   if(isset($this_body[0])) {
@@ -167,6 +176,53 @@ function codewar_render_code($node) {
   $path = drupal_get_path('module', 'codewar');
   drupal_add_js($path.'/ace/ace.js');
   drupal_add_js($path.'/js/codebot_edit.js');
+
+  return $output;
+}
+
+/**
+ * print out the icon editor for the codebot node
+ * @param object $node
+ * @return string
+ */
+function codewar_edit_icons_page($node) {
+  dpm($node);
+
+  //add our images within a hidden div, so they are accessible to the javascript
+  $output = '<div class="hidden" id="icon-hidey-hole">';
+  if(isset($node->field_icon[LANGUAGE_NONE])) {
+    $icon_num = 1;
+    foreach ($node->field_icon[LANGUAGE_NONE] as $icon_file) {
+      if(isset($icon_file['uri'])) {
+        //this icon is valid
+        $address = file_create_url($icon_file['uri']);
+
+        $output .= '<img src="'.$address.'" id="icon-'.$icon_num.'"/>';
+        $icon_num++;
+      }
+    }
+
+  }
+  $output .= '</div>';
+  //add the icon chooser canvas
+  $output .= '<canvas id="chooser-canvas" width="150" height="400"></canvas>';
+  //add the icon canvas
+  $output .= '<canvas id="icon-canvas" width="354" height="354"></canvas>';
+  //add our spectrum chooser
+  $output .= '<input type="text" id="chose-color"/>';
+
+  $path = drupal_get_path('module', 'codewar');
+  drupal_add_css($path.'/spectrum/spectrum.css');
+  drupal_add_js($path.'/spectrum/spectrum.js');
+  drupal_add_js($path.'/js/codebot_icons.js');
+
+  //set defaults, set here so we can change the image being edited from code later...
+  $settings_array = array(
+    'codewar' => array(
+      'selected_icon' => 0
+    )
+  );
+  drupal_add_js($settings_array, 'setting');
 
   return $output;
 }

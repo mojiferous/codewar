@@ -22,3 +22,18 @@
   width: 100%;
   height: 700px;
 }
+
+/* line 26, ../sass/fresh.scss */
+.hidden {
+  display: none;
+}
+
+/* line 30, ../sass/fresh.scss */
+#icon-canvas {
+  float: left;
+}
+
+/* line 33, ../sass/fresh.scss */
+#chooser-canvas {
+  float: left;
+}
