@@ -203,9 +203,11 @@ function codewar_edit_icons_page($node) {
     }
 
   }
+  //add the hidden pixel value canvas
+  $output .= '<canvas id="hidden-icon" width="32" height="320"></canvas>';
   $output .= '</div>';
   //add the icon chooser canvas
-  $output .= '<canvas id="chooser-canvas" width="150" height="400"></canvas>';
+  $output .= '<canvas id="chooser-canvas" width="100" height="400"></canvas>';
   //add the icon canvas
   $output .= '<canvas id="icon-canvas" width="354" height="354"></canvas>';
   //add our spectrum chooser
