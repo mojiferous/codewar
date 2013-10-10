@@ -7,6 +7,7 @@ var hidden_icon;
 var has_hidden;
 var chooser_canvas;
 var icon_canvas;
+var save_canvas;
 var tot_icons;
 
 (function ($, Drupal, window, document) {
@@ -31,6 +32,7 @@ var tot_icons;
         hidden_icon = document.getElementById('hidden-icon').getContext('2d');
         chooser_canvas = document.getElementById('chooser-canvas').getContext('2d');
         icon_canvas = document.getElementById('icon-canvas').getContext('2d');
+        save_canvas = document.getElementById('save-canvas').getContext('2d');
 
         tot_icons = $('#icon-hidey-hole').children('img').length;
 
@@ -73,7 +75,37 @@ var tot_icons;
             icon_canvas.fillRect((x_val*10)+(x_val+1), (y_val*10)+(y_val+1), 10, 10);
           }
 
+        });
 
+        $('#save-icon').click(function() {
+          //the save button has been clicked
+          copy_canvas_data();
+          //get the base64 canvas data for the save icon
+          var canv_data = document.getElementById('save-canvas').toDataURL();
+
+          //send the canvas data to the save icon page
+          var request = $.ajax({
+            type: "POST",
+            url: "/icon-save/"+Drupal.settings.codewar.bot_id+"/"+Drupal.settings.codewar.selected_icon,
+            data: {imagedata: canv_data},
+            success: function(data, text_status) {
+              switch (data) {
+                //handle errors, success
+                case '1':
+                  alert('Error: Unable to save: Image too large?');
+                  break;
+                case '2':
+                  alert('Internal Error: Unable to save bot');
+                  break;
+                case '3':
+                  alert('Error: Unable to save: Data corrupted');
+                  break;
+                default:
+                  location.reload();
+                  break;
+              }
+            }
+          });
 
         });
 
@@ -146,12 +178,30 @@ var tot_icons;
    * draws the image data from the selected icon onto the canvas
    */
   function draw_image_data_on_canvas() {
+    var this_color;
     for(var x=0; x<32; x++) {
       for(var y=0; y<32; y++) {
         var this_data = hidden_icon.getImageData(x, (Drupal.settings.codewar.selected_icon*32)+y, 1, 1);
-        var this_color = 'rgb('+this_data.data[0]+','+this_data.data[1]+','+this_data.data[2]+')';
+        this_color = 'rgb('+this_data.data[0]+','+this_data.data[1]+','+this_data.data[2]+')';
         icon_canvas.fillStyle = this_color;
         icon_canvas.fillRect((x*10)+(x+1), (y*10)+(y+1), 10, 10);
+      }
+    }
+  }
+
+  /**
+   * copies data from the icon editor to the save canvas, where it is sent to the site
+   */
+  function copy_canvas_data() {
+    var this_color;
+
+    for(var x=0; x<32; x++) {
+      for(var y=0; y<32; y++) {
+        //loop through each pixel, copying to the save canvas
+        var this_data = icon_canvas.getImageData((x*10)+(x+1), (y*10)+(y+1), 1, 1);
+        this_color = 'rgb('+this_data.data[0]+','+this_data.data[1]+','+this_data.data[2]+')';
+        save_canvas.fillStyle = this_color;
+        save_canvas.fillRect(x, y, 1, 1);
       }
     }
   }

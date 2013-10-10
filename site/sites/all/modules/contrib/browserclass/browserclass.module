@@ -170,12 +170,22 @@ function browserclass_check_browser($agent) {
     }
   }
 
-  // Chrome is send safari header too
+  // Check for chrome desktop first, then chrome mobile, lastly check for
+  // safari, as these are mutually exclusive.
   if (stristr($agent, 'chrome') !== FALSE) {
     $classes[] = 'chrome';
     $aresult = explode('/', stristr($agent, 'chrome'));
     $aversion = explode(' ', $aresult[1]);
     $classes[] = 'chrome' . _browserclass_clear_version($aversion[0]);
+  }
+  elseif (stristr($agent, 'crios') !== FALSE) {
+    $classes[] = 'chrome';
+
+    $aresult = explode('/', stristr($agent, 'crios'));
+    if (isset($aresult[1])) {
+      $aversion = explode(' ', $aresult[1]);
+      $classes[] = 'chrome' . _browserclass_clear_version($aversion[0]);
+    }
   }
   elseif (stristr($agent, 'safari') !== FALSE) {
     $classes[] = 'safari';

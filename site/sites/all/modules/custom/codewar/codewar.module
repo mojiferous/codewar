@@ -56,6 +56,16 @@ function codewar_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
 
+  $items['icon-save/%node/%'] = array(
+    'title' => 'Save Icon',
+    'description' => t('Save icon for bot'),
+    'page callback' => 'codewar_save_icon',
+    'page arguments' => array(1, 2),
+    'access callback' => true,
+    'access arguments' => array(1),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
   return $items;
 }
 
@@ -157,6 +167,56 @@ function codewar_process_code($session_value) {
 }
 
 /**
+ * handles saving icon from the javascript icon editor
+ * @param $node
+ * @param $icon_num
+ */
+function codewar_save_icon($node, $icon_num) {
+  $ret_val = '0';
+  //grab our raw image data passed from the javascript canvas -- put into a post value
+  $raw_data = $_POST['imagedata'];
+
+  $filtered_data = explode(',', $raw_data);
+  //this data is posted as "data:image/png;base64,<data>", so we explode on comma
+
+  if(isset($filtered_data[1]) && $icon_num < 10) {
+    //make sure there is data and the icon num is within range
+
+    //get the raw data
+    $unecoded = base64_decode($filtered_data[1]);
+
+    $image_size = strlen($unecoded);
+
+    if($image_size < 5000) {
+      //save the file to the filesystem
+      $file = file_save_data($unecoded, 'public://bot_'.$node->nid.'_icon_'.$icon_num.'.png', FILE_EXISTS_RENAME);
+
+      //replace the icon if it exists, otherwise add the icon
+      if(isset($node->field_icon[LANGUAGE_NONE][$icon_num])) {
+        $node->field_icon[LANGUAGE_NONE][$icon_num] = (array)$file;
+      } else {
+        $node->field_icon[LANGUAGE_NONE][] = (array)$file;
+      }
+
+      try {
+        //try/catch wrapped node_save to pass along information
+        node_save($node);
+      } catch (Exception $e) {
+        $ret_val = '2';
+      }
+
+    } else {
+      $ret_val = '1';
+    }
+
+  } else {
+    $ret_val = '3';
+  }
+
+  drupal_json_output($ret_val);
+}
+
+/**
  * return the code for a specific codebot
  * @param object $node
  * @return string
@@ -188,8 +248,10 @@ function codewar_render_code($node) {
 function codewar_edit_icons_page($node) {
   dpm($node);
 
-  //add our images within a hidden div, so they are accessible to the javascript
+  //add a hidden div for things like our existing icons and save icons
   $output = '<div class="hidden" id="icon-hidey-hole">';
+
+  //add our images within a hidden div, so they are accessible to the javascript
   if(isset($node->field_icon[LANGUAGE_NONE])) {
     $icon_num = 1;
     foreach ($node->field_icon[LANGUAGE_NONE] as $icon_file) {
@@ -201,17 +263,23 @@ function codewar_edit_icons_page($node) {
         $icon_num++;
       }
     }
-
   }
+
+  //add the hidden save image canvas
+  $output .= '<canvas id="save-canvas" width="32" height="32"></canvas>';
   //add the hidden pixel value canvas
   $output .= '<canvas id="hidden-icon" width="32" height="320"></canvas>';
   $output .= '</div>';
+
+
   //add the icon chooser canvas
   $output .= '<canvas id="chooser-canvas" width="100" height="400"></canvas>';
   //add the icon canvas
   $output .= '<canvas id="icon-canvas" width="354" height="354"></canvas>';
   //add our spectrum chooser
   $output .= '<input type="text" id="chose-color"/>';
+  //add the 'save' button
+  $output .= '<input type="button" id="save-icon" value="Save"/>';
 
   $path = drupal_get_path('module', 'codewar');
   drupal_add_css($path.'/spectrum/spectrum.css');
@@ -221,7 +289,8 @@ function codewar_edit_icons_page($node) {
   //set defaults, set here so we can change the image being edited from code later...
   $settings_array = array(
     'codewar' => array(
-      'selected_icon' => 0
+      'selected_icon' => 0,
+      'bot_id' => $node->nid
     )
   );
   drupal_add_js($settings_array, 'setting');
