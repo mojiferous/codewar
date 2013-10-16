@@ -46,11 +46,31 @@ function codewar_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
 
+  $items['code/%node/save'] = array(
+    'title' => 'Save Code',
+    'description' => t('Save bot code ajax'),
+    'page callback' => 'codewar_save_code',
+    'page arguments' => array(1),
+    'access callback' => true,
+    'access arguments' => array(1),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
   $items['code/%node/icons'] = array(
     'title' => 'Edit Icons',
     'description' => t('Edit icons for bot'),
     'page callback' => 'codewar_edit_icons_page',
     'page arguments' => array(1),
+    'access callback' => true,
+    'access arguments' => array(1),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['code/%node/attributes'] = array(
+    'title' => 'Edit Attributes',
+    'description' => t('Edit attributes for bot'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('codewar_edit_attributes_page', 1),
     'access callback' => true,
     'access arguments' => array(1),
     'type' => MENU_NORMAL_ITEM,
@@ -132,7 +152,28 @@ function codewar_run_code($node) {
   $path = drupal_get_path('module', 'codewar');
   drupal_add_js($path.'/js/codebot.js');
 
-  return '<div id="code_result">CODE:<br/></div>';
+  //add a hidden div for things like our existing icons and save icons
+  $output = '<div class="hidden" id="icon-hidey-hole">';
+
+  //add our images within a hidden div, so they are accessible to the javascript
+  if(isset($node->field_icon[LANGUAGE_NONE])) {
+    $icon_num = 1;
+    foreach ($node->field_icon[LANGUAGE_NONE] as $icon_file) {
+      if(isset($icon_file['uri'])) {
+        //this icon is valid
+        $address = file_create_url($icon_file['uri']);
+
+        $output .= '<img src="'.$address.'" id="icon-'.$icon_num.'"/>';
+        $icon_num++;
+      }
+    }
+  }
+
+  $output .= '</div>';
+
+  $output .= '<div id="code_result">CODE:<br/></div>';
+
+  return $output;
 }
 
 /**
@@ -217,7 +258,33 @@ function codewar_save_icon($node, $icon_num) {
 }
 
 /**
- * return the code for a specific codebot
+ * ajax page to handle code saving from the ace editor, outputs json status code
+ * @param $node
+ */
+function codewar_save_code($node) {
+  $ret_val = '0';
+
+
+  if(isset($_POST['code_data'])) {
+    $node->body[LANGUAGE_NONE][0]['value'] = $_POST['code_data'];
+
+    try {
+      //try/catch wrapped node_save to pass along information
+      node_save($node);
+    } catch (Exception $e) {
+      $ret_val = '2';
+    }
+
+  } else {
+    //there is no code data posted
+    $ret_val = '1';
+  }
+
+  drupal_json_output($ret_val);
+}
+
+/**
+ * return the code for a specific codebot, render it into a styled code editor
  * @param object $node
  * @return string
  */
@@ -231,13 +298,114 @@ function codewar_render_code($node) {
 
   //add the ace wrapper
   $output = '<div id="code-body">'.$raw_body.'</div>';
+  $output .= '<button id="save-code">Save</button>';
 
   //add all of our javascript, including the no-conflict minimized ace, and the custom js that sets our editor and the ace settings
   $path = drupal_get_path('module', 'codewar');
   drupal_add_js($path.'/ace/ace.js');
   drupal_add_js($path.'/js/codebot_edit.js');
 
+  //add the ui button
+  drupal_add_library('system', 'ui.button');
+
+  //set defaults
+  $settings_array = array(
+    'codewar' => array(
+      'bot_id' => $node->nid
+    )
+  );
+  drupal_add_js($settings_array, 'setting');
+
   return $output;
+}
+
+function codewar_edit_attributes_page($form, &$form_state, $node) {
+  //add the jQueryUI libraries
+  drupal_add_library('system', 'ui.button');
+  drupal_add_library('system', 'ui.slider');
+  //add our custom javascript
+  $path = drupal_get_path('module', 'codewar');
+  drupal_add_js($path.'/js/codebot_attributes.js');
+
+  $life_points = isset($node->field_life_level[LANGUAGE_NONE][0]['value']) ? $node->field_life_level[LANGUAGE_NONE][0]['value'] : 0;
+  $armor_points = isset($node->field_armor_level[LANGUAGE_NONE][0]['value']) ? $node->field_armor_level[LANGUAGE_NONE][0]['value'] : 0;
+  $speed_points = isset($node->field_speed[LANGUAGE_NONE][0]['value']) ? $node->field_speed[LANGUAGE_NONE][0]['value'] : 0;
+  $ranged_points = isset($node->field_ranged_weapon[LANGUAGE_NONE][0]['value']) ? $node->field_ranged_weapon[LANGUAGE_NONE][0]['value'] : 0;
+  $mid_points = isset($node->field_mid_range_attack_weapon[LANGUAGE_NONE][0]['value']) ? $node->field_mid_range_attack_weapon[LANGUAGE_NONE][0]['value'] : 0;
+  $mine_points = isset($node->field_mine_weapon[LANGUAGE_NONE][0]['value']) ? $node->field_mine_weapon[LANGUAGE_NONE][0]['value'] : 0;
+  $bomb_points = isset($node->field_bomb_weapon[LANGUAGE_NONE][0]['value']) ? $node->field_bomb_weapon[LANGUAGE_NONE][0]['value'] : 0;
+
+  //calculate the total points used,
+  //assuming that each 5+ in life is 5 points (and the base of 5 is 0)
+  //each additional armor point is 2 points
+  //each increase in speed of 1 is 5 points
+  //the ranged weapon is 10 points
+  //the mid-range (spear) weapon is 2 points
+  //the mine weapon is 10 points
+  //the bomb weapon is 10 points
+  $tot_points = ($life_points*5) + ($armor_points*2) + ($speed_points*5) + ($ranged_points*10) + ($mid_points*2) + ($mine_points*10) + ($bomb_points*10);
+
+  $form['life_level'] = array(
+    '#type' => 'radios',
+    '#title' => t('Life Points'),
+    '#default_value' => $life_points,
+    '#options' => array(0 => '5', 1 => '10', 2 => '15'),
+  );
+
+  $form['armor_level'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Armor Points'),
+    '#default_value' => $armor_points,
+    '#size' => 2,
+    '#maxlength' => 2,
+    '#suffix' => '<div class="form-item slider-container"><div id="armor-slider"></div></div>'
+  );
+
+  $form['speed_level'] = array(
+    '#type' => 'radios',
+    '#title' => t('Speed Points'),
+    '#default_value' => $speed_points,
+    '#options' => array(0 => '1', 1 => '2', 2 => '3'),
+  );
+
+  $form['ranged_weapon'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Ranged Weapon'),
+    '#default_value' => $ranged_points,
+  );
+
+  $form['short_weapon'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Short Range Attack Weapon'),
+    '#default_value' => 1,
+    '#disabled' => true,
+  );
+
+  $form['mid_weapon'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Mid-range Attack Weapon'),
+    '#default_value' => $mid_points,
+  );
+
+  $form['mine_weapon'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Mines'),
+    '#default_value' => $mine_points,
+  );
+
+  $form['bomb_weapon'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Bombs'),
+    '#default_value' => $bomb_points,
+  );
+
+  $form['points_used'] = array(
+    '#markup' => $tot_points,
+    '#prefix' => '<div class="form-item"><h3>Total Points</h3><div id="total-points">',
+    '#suffix' => '</div></div>'
+  );
+
+  return $form;
 }
 
 /**
@@ -246,7 +414,6 @@ function codewar_render_code($node) {
  * @return string
  */
 function codewar_edit_icons_page($node) {
-  dpm($node);
 
   //add a hidden div for things like our existing icons and save icons
   $output = '<div class="hidden" id="icon-hidey-hole">';

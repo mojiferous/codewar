@@ -33,3 +33,23 @@
 #chooser-canvas {
   float: left;
 }
+
+.page-code-attributes {
+  .form-radios {
+    float: left;
+    width: 100%;
+    .form-item {
+      float: left;
+    }
+  }
+
+
+  label.option {
+    display: inline-block;
+  }
+
+  .slider-container {
+    width: 200px;
+  }
+}
+
