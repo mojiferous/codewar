@@ -47,11 +47,15 @@
 .page-code-attributes .form-radios .form-item {
   float: left;
 }
-/* line 47, ../sass/fresh.scss */
+/* line 46, ../sass/fresh.scss */
+.page-code-attributes .error {
+  color: red;
+}
+/* line 51, ../sass/fresh.scss */
 .page-code-attributes label.option {
   display: inline-block;
 }
-/* line 51, ../sass/fresh.scss */
+/* line 55, ../sass/fresh.scss */
 .page-code-attributes .slider-container {
   width: 200px;
 }

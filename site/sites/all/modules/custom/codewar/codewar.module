@@ -9,6 +9,17 @@ require_once('code_bot.inc');
 require_once('code_map.inc');
 
 /**
+ * define our point values, which determine the costs of attributes
+ */
+define('kLIFE_POINTS', 5);
+define('kARMOR_POINTS', 2);
+define('kSPEED_POINTS', 5);
+define('kRANGED_POINTS', 10);
+define('kMID_POINTS', 2);
+define('kMINE_POINTS', 10);
+define('kBOMB_POINTS', 10);
+
+/**
  * implements hook_menu()
  * @todo add proper access callbacks to check user access to node
  */
@@ -209,6 +220,7 @@ function codewar_process_code($session_value) {
 
 /**
  * handles saving icon from the javascript icon editor
+ * @todo check user permissions to edit this bot
  * @param $node
  * @param $icon_num
  */
@@ -319,6 +331,13 @@ function codewar_render_code($node) {
   return $output;
 }
 
+/**
+ * Codebot attribute edit form
+ * @param $form
+ * @param $form_state
+ * @param $node
+ * @return mixed
+ */
 function codewar_edit_attributes_page($form, &$form_state, $node) {
   //add the jQueryUI libraries
   drupal_add_library('system', 'ui.button');
@@ -326,6 +345,27 @@ function codewar_edit_attributes_page($form, &$form_state, $node) {
   //add our custom javascript
   $path = drupal_get_path('module', 'codewar');
   drupal_add_js($path.'/js/codebot_attributes.js');
+
+  //@todo max points can be changed to set weight class of bot -- e.g. welter weight may be 10 pts, heavy may be 40, etc.
+  $js_vals = array(
+    'life_points' => kLIFE_POINTS,
+    'armor_points' => kARMOR_POINTS,
+    'speed_points' => kSPEED_POINTS,
+    'ranged_points' => kRANGED_POINTS,
+    'mid_points' => kMID_POINTS,
+    'mine_points' => kMINE_POINTS,
+    'bomb_points' => kBOMB_POINTS,
+    'max_points' => 20
+  );
+  drupal_add_js(array('codewar_vars' => $js_vals), 'setting');
+
+  global $user;
+  //the max points value, and node id will be added to a session variable to prevent user interference
+  $_SESSION['bot_'.$user->uid.'_attr_'.$node->nid] = array('max_points' => 20, 'nid' => $node->nid);
+  $form['bot_id'] = array(
+    '#type' => 'hidden',
+    '#value' => $node->nid
+  );
 
   $life_points = isset($node->field_life_level[LANGUAGE_NONE][0]['value']) ? $node->field_life_level[LANGUAGE_NONE][0]['value'] : 0;
   $armor_points = isset($node->field_armor_level[LANGUAGE_NONE][0]['value']) ? $node->field_armor_level[LANGUAGE_NONE][0]['value'] : 0;
@@ -343,7 +383,7 @@ function codewar_edit_attributes_page($form, &$form_state, $node) {
   //the mid-range (spear) weapon is 2 points
   //the mine weapon is 10 points
   //the bomb weapon is 10 points
-  $tot_points = ($life_points*5) + ($armor_points*2) + ($speed_points*5) + ($ranged_points*10) + ($mid_points*2) + ($mine_points*10) + ($bomb_points*10);
+  $tot_points = ($life_points*kLIFE_POINTS) + ($armor_points*kARMOR_POINTS) + ($speed_points*kSPEED_POINTS) + ($ranged_points*kRANGED_POINTS) + ($mid_points*kMID_POINTS) + ($mine_points*kMINE_POINTS) + ($bomb_points*kBOMB_POINTS);
 
   $form['life_level'] = array(
     '#type' => 'radios',
@@ -405,7 +445,95 @@ function codewar_edit_attributes_page($form, &$form_state, $node) {
     '#suffix' => '</div></div>'
   );
 
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+
   return $form;
+}
+
+/**
+ * validate attribute form
+ * @param $form
+ * @param $form_state
+ */
+function codewar_edit_attributes_page_validate($form, &$form_state) {
+  $vals = $form_state['values'];
+
+  $point_cost = 0;
+
+  //calculate the total points used,
+  //assuming that each 5+ in life is 5 points (and the base of 5 is 0)
+  //each additional armor point is 2 points
+  //each increase in speed of 1 is 5 points
+  //the ranged weapon is 10 points
+  //the mid-range (spear) weapon is 2 points
+  //the mine weapon is 10 points
+  //the bomb weapon is 10 points
+  $point_cost += isset($vals['life_level']) ? ($vals['life_level'] * kLIFE_POINTS) : 0;
+  $point_cost += isset($vals['armor_level']) ? ($vals['armor_level'] * kARMOR_POINTS) : 0;
+  $point_cost += isset($vals['speed_level']) ? ($vals['speed_level'] * kSPEED_POINTS) : 0;
+  $point_cost += isset($vals['ranged_weapon']) ? ($vals['ranged_weapon'] * kRANGED_POINTS) : 0;
+  $point_cost += isset($vals['mid_weapon']) ? ($vals['mid_weapon'] * kMID_POINTS) : 0;
+  $point_cost += isset($vals['mine_weapon']) ? ($vals['mine_weapon'] * kMINE_POINTS) : 0;
+  $point_cost += isset($vals['bomb_weapon']) ? ($vals['bomb_weapon'] * kBOMB_POINTS) : 0;
+
+  global $user;
+  if(isset($vals['bot_id']) && isset($_SESSION['bot_'.$user->uid.'_attr_'.$vals['bot_id']]['max_points'])) {
+    //to prevent user spoofing and accidental editing of other user's bots, we do multiple checks here and store variables in the
+    //session variable instead of hidden values on the form
+    $max_val = $_SESSION['bot_'.$user->uid.'_attr_'.$vals['bot_id']]['max_points'];
+
+    if($point_cost > $max_val) {
+      form_set_error('', 'Attribute points exceed maximum allowed! (Max: '.$max_val.')');
+    }
+  } else {
+    form_set_error('', 'Internal error, form bot does not match internal data.');
+
+    //log an error into the logs
+    $num = isset($vals['bot_id']) ? $vals['bot_id'] : 'UNDEFINED';
+    watchdog('codewar', 'Attribute page editing error, bot #'.$num);
+  }
+}
+
+/**
+ * submit handler for attributes form
+ * @param $form
+ * @param $form_state
+ */
+function codewar_edit_attributes_page_submit($form, $form_state) {
+  $vals = $form_state['values'];
+
+  global $user;
+  if(isset($vals['bot_id']) && isset($_SESSION['bot_'.$user->uid.'_attr_'.$vals['bot_id']]['max_points'])) {
+    //to prevent user spoofing and accidental editing of other user's bots, we do multiple checks here and store variables in the
+    //session variable instead of hidden values on the form
+    $this_nid = $_SESSION['bot_'.$user->uid.'_attr_'.$vals['bot_id']]['nid'];
+
+    //get our total points, which we store on the resource_points field
+    $point_cost = 0;
+    $point_cost += isset($vals['life_level']) ? ($vals['life_level'] * kLIFE_POINTS) : 0;
+    $point_cost += isset($vals['armor_level']) ? ($vals['armor_level'] * kARMOR_POINTS) : 0;
+    $point_cost += isset($vals['speed_level']) ? ($vals['speed_level'] * kSPEED_POINTS) : 0;
+    $point_cost += isset($vals['ranged_weapon']) ? ($vals['ranged_weapon'] * kRANGED_POINTS) : 0;
+    $point_cost += isset($vals['mid_weapon']) ? ($vals['mid_weapon'] * kMID_POINTS) : 0;
+    $point_cost += isset($vals['mine_weapon']) ? ($vals['mine_weapon'] * kMINE_POINTS) : 0;
+    $point_cost += isset($vals['bomb_weapon']) ? ($vals['bomb_weapon'] * kBOMB_POINTS) : 0;
+
+    $this_bot = node_load($this_nid);
+    $this_bot->field_resource_points[LANGUAGE_NONE][0]['value'] = $point_cost;
+    $this_bot->field_life_level[LANGUAGE_NONE][0]['value'] = isset($vals['life_level']) ? $vals['life_level'] : 0;
+    $this_bot->field_armor_level[LANGUAGE_NONE][0]['value'] = isset($vals['armor_level']) ? $vals['armor_level'] : 0;
+    $this_bot->field_speed[LANGUAGE_NONE][0]['value'] = isset($vals['speed_level']) ? $vals['speed_level'] : 0;
+    $this_bot->field_ranged_weapon[LANGUAGE_NONE][0]['value'] = isset($vals['ranged_weapon']) ? $vals['ranged_weapon'] : 0;
+    $this_bot->field_mid_range_attack_weapon[LANGUAGE_NONE][0]['value'] = isset($vals['mid_weapon']) ? $vals['mid_weapon'] : 0;
+    $this_bot->field_mine_weapon[LANGUAGE_NONE][0]['value'] = isset($vals['mine_weapon']) ? $vals['mine_weapon'] : 0;
+    $this_bot->field_bomb_weapon[LANGUAGE_NONE][0]['value'] = isset($vals['bomb_weapon']) ? $vals['bomb_weapon'] : 0;
+
+    node_save($this_bot);
+
+  }
 }
 
 /**
