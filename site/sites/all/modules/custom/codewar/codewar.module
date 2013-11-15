@@ -26,15 +26,14 @@ define('kBOMB_POINTS', 10);
 function codewar_menu() {
   $items = array();
 
-  $items['node/%node/run'] = array(
+  $items['code/%node/run'] = array(
     'title' => 'Run Code',
     'description' => t('Run code for bot'),
     'page callback' => 'codewar_run_code',
     'page arguments' => array(1),
     'access callback' => true,
     'access arguments' => array(1),
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+    'type' => MENU_NORMAL_ITEM,
   );
 
   $items['code/%/step'] = array(
@@ -143,7 +142,22 @@ function codewar_run_code($node) {
 
   $this_map = new code_map();
 
-  $this_map->add_new_bot($this_code, 100);
+  //assuming that each field_life_level point is 5 points of life (and 0 is the base at 5 points)
+  //each additional armor point is 2 points
+  //speed is simply +1'd
+  //weapons are passed as booleans
+  $this_map->add_new_bot(
+    $this_code,
+    (($node->field_life_level[LANGUAGE_NONE][0]['value']+1)*kLIFE_POINTS),
+    ($node->field_armor_level[LANGUAGE_NONE][0]['value']*kARMOR_POINTS),
+    ($node->field_speed[LANGUAGE_NONE][0]['value']+1),
+    ($node->field_ranged_weapon[LANGUAGE_NONE][0]['value'] == 1),
+    ($node->field_mid_range_attack_weapon[LANGUAGE_NONE][0]['value'] == 1),
+    ($node->field_mine_weapon[LANGUAGE_NONE][0]['value'] == 1),
+    ($node->field_bomb_weapon[LANGUAGE_NONE][0]['value'] == 1)
+  );
+
+  dpm($this_map);
 
   //the session and cache data for this map uses the current user and the node ids to keep everything unique
   //and to prevent collisions

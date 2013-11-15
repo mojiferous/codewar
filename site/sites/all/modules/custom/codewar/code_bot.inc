@@ -24,6 +24,12 @@ class code_bot {
     '_x',
     '_y',
     '_hp',
+    '_armor',
+    '_speed',
+    '_has_arrow',
+    '_has_spear',
+    '_has_mines',
+    '_has_bombs'
   );
 
   /**
@@ -494,6 +500,15 @@ class code_bot {
       case '_arrow':
         //attack with the bow and arrow in direction
         break;
+      case '_spear':
+        //attack with the spear in direction
+        break;
+      case '_mine':
+        //lay a mine at the current position
+        break;
+      case '_bomb':
+        //leave a bomb at the current position
+        break;
       default:
         break;
     }
@@ -624,6 +639,9 @@ class code_bot {
     $this->code_array['system_funcs']['_feel'] = 0;
     $this->code_array['system_funcs']['_sword'] = 0;
     $this->code_array['system_funcs']['_arrow'] = 0;
+    $this->code_array['system_funcs']['_spear'] = 0;
+    $this->code_array['system_funcs']['_mines'] = 0;
+    $this->code_array['system_funcs']['_bombs'] = 0;
   }
 
   /**
@@ -698,6 +716,37 @@ class code_bot {
   }
 
   /**
+   * sets the bot armor
+   * @param $value
+   */
+  public function set_armor($value) {
+    $this->check_code_array();
+
+    $this->code_array['vars']->_armor = $value;
+  }
+
+  /**
+   * sets the bot speed
+   * @param $value
+   */
+  public function set_speed($value) {
+    $this->check_code_array();
+
+    $this->code_array['vars']->_speed = $value;
+  }
+
+  public function set_weapons($weapon_array) {
+    if(count($weapon_array) == 4) {
+      $this->check_code_array();
+
+      $this->code_array['vars']->_has_arrow = $weapon_array[0];
+      $this->code_array['vars']->_has_spear = $weapon_array[1];
+      $this->code_array['vars']->_has_mines = $weapon_array[2];
+      $this->code_array['vars']->_has_bombs = $weapon_array[3];
+    }
+  }
+
+  /**
    * returns array of current location
    * @return array
    */
@@ -718,6 +767,15 @@ class code_bot {
   public function return_hp() {
     $this->check_code_array();
     return $this->code_array['vars']->_hp;
+  }
+
+  /**
+   * returns a bots current armor level
+   * @return mixed
+   */
+  public function return_armor() {
+    $this->check_code_array();
+    return $this->code_array['vars']->_armor;
   }
 
 }

@@ -51,8 +51,14 @@ class code_map {
    * add a previously loaded code_bot to the array, and assign it a location
    * @param code_bot $bot
    * @param int $bot_hp
+   * @param $bot_armor
+   * @param $bot_speed
+   * @param $bot_ranged
+   * @param $bot_mid
+   * @param $bot_mine
+   * @param $bot_bomb
    */
-  public function add_new_bot(code_bot $bot, $bot_hp) {
+  public function add_new_bot(code_bot $bot, $bot_hp, $bot_armor, $bot_speed, $bot_ranged, $bot_mid, $bot_mine, $bot_bomb) {
     if($bot && isset($bot->code_array)) {
       //make sure the bot is set and has a code array
       $this->bots[] = $bot;
@@ -78,6 +84,9 @@ class code_map {
 
         $bot->set_location($this_x, $this_y);
         $bot->set_hp($bot_hp);
+        $bot->set_armor($bot_armor);
+        $bot->set_speed($bot_speed);
+        $bot->set_weapons(array($bot_ranged, $bot_mid, $bot_mine, $bot_bomb));
 
         $this->bots[count($this->bots)-1] = $bot;
 
