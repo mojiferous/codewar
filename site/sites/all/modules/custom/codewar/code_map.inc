@@ -107,7 +107,7 @@ class code_map {
 
       $this->bots[$n] = $this_bot;
 
-      dpm($result_code);
+      dpm($result_code, 'resoots');
     }
 
   }

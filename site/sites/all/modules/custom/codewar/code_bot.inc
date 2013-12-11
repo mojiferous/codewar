@@ -134,7 +134,7 @@ class code_bot {
               }
 
               if($var_val !== false) {
-                //there was a value assigned, otherwise, something went wrong and we set and error
+                //there was a value assigned, otherwise, something went wrong and we set an error
 
                 if(in_array($var_name, $this->sys_vars)) {
                   //this is a system value, we can not assign a value to this within the program

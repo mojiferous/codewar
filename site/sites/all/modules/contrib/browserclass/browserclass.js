@@ -19,12 +19,15 @@
       var aversion = '';
       var resultant = '';
 
-      if (this.agent.match(/msie/)) {
+      var iePattern = /(?:\b(ms)?ie\s+|\btrident\/7\.0;.*\s+rv:)(\d+)/;
+      var ieMatch = this.agent.match(iePattern);
+
+      if (ieMatch) {
         this.classes.push('ie');
 
-        reg_res = this.agent.match(/.*msie ([0-9]*)\..*/);
-        this.classes.push('ie' + reg_res[1]);
-
+        if (typeof ieMatch[2] !== 'undefined') {
+          this.classes.push('ie' + ieMatch[2]);
+        }
       }
 
       if (this.agent.match(/opera/)) {
