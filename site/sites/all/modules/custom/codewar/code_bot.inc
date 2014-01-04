@@ -232,7 +232,7 @@ class code_bot {
 
             //split the test value along the standard test vals
             preg_match_all("/(.*?)([<>!=]+)(.*)/is", $line_val[1], $matches);
-            if(isset($matches[1][0]) && isset($matches[3][0]) && !empty($matches[1][0]) && !empty($matches[3][0])) {
+            if(!empty($matches[1][0]) && !empty($matches[3][0])) {
               //make sure we have matches for these arguments
               $first_test = $matches[1][0];
               $second_test = $matches[3][0];

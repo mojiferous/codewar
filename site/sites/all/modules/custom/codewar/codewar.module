@@ -26,7 +26,7 @@ define('kBOMB_POINTS', 10);
 function codewar_menu() {
   $items = array();
 
-  $items['code/%node/run'] = array(
+  $items['code/%/run'] = array(
     'title' => 'Run Code',
     'description' => t('Run code for bot'),
     'page callback' => 'codewar_run_code',
@@ -44,6 +44,16 @@ function codewar_menu() {
     'access callback' => true,
     'access arguments' => array(1),
     'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['code/%node'] = array(
+    'title' => 'Codebot',
+    'description' => t('Codebot landing page'),
+    'page callback' => 'codewar_display_bot',
+    'page arguments' => array(1),
+    'access callback' => true,
+    'access arguments' => array(1),
+    'type' => MENU_NORMAL_ITEM
   );
 
   $items['code/%node/edit'] = array(
@@ -96,7 +106,247 @@ function codewar_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
 
+  $items['bot-search'] = array(
+    'title' => 'Bot Search',
+    'description' => 'Autocomplete page for bot search',
+    'page callback' => 'codewar_autocomplete_search',
+    'access callback' => true,
+    'type' => MENU_CALLBACK
+  );
+
   return $items;
+}
+
+/**
+ * returns a standard bot menu
+ * @param $bot_node_id
+ * @param int $active_button
+ * @return string
+ */
+function codewar_bot_menu($bot_node_id, $active_button = 0) {
+  //add the jQueryUI libraries
+  drupal_add_library('system', 'ui.button');
+  //add our custom javascript
+  $path = drupal_get_path('module', 'codewar');
+  drupal_add_js($path.'/js/codebot_menu.js');
+
+  $ret_val = '<ul>';
+
+  $ret_val .= '<li><a href="/code/'.$bot_node_id.'" id="bot-home-button" class="'.(($active_button === 1) ? 'active' : '').'">Bot Home</a>';
+  $ret_val .= '<li><a href="/code/'.$bot_node_id.'/edit" id="bot-edit-button" class="'.(($active_button === 2) ? 'active' : '').'">Edit Bot Code</a></li>';
+  $ret_val .= '<li><a href="/code/'.$bot_node_id.'/icons" id="bot-icon-button" class="'.(($active_button === 3) ? 'active' : '').'">Edit Bot Icons</a></li>';
+  $ret_val .= '<li><a href="/code/'.$bot_node_id.'/attributes" id="bot-attr-button" class="'.(($active_button === 4) ? 'active' : '').'">Edit Bot Attributes</a></li>';
+
+  $ret_val .= '</ul>';
+
+  return $ret_val;
+}
+
+/**
+ * returns autocomplete values for a bot search
+ * @param $val
+ */
+function codewar_autocomplete_search($val) {
+  global $user;
+  $matches = array();
+
+  if(empty($user->uid) || $user->uid < 1) {
+    //don't return results for anonymous users
+    drupal_json_output($matches);
+    return;
+  }
+
+  //look for bots with names matching the search that are public and not from the same user
+  $bot_titles = db_query("SELECT n.nid, n.title, u.name FROM {node} n INNER JOIN {field_revision_field_private} fp ON fp.entity_id = n.nid INNER JOIN {users} u ON n.uid = u.uid WHERE n.type = 'codebot' AND fp.field_private_value != 1 AND n.uid != :uid AND n.title LIKE :search LIMIT 10", array(':uid' => $user->uid, ':search' => '%'.$val.'%'))->fetchAll();
+
+  foreach ($bot_titles as $bots) {
+    if(!empty($bots->nid) && !empty($bots->title) && !empty($bots->name)) {
+      $matches['bot_id:'.$bots->nid.' name:'.$bots->title] = $bots->title.' - '.$bots->name;
+    }
+  }
+
+  //additionally, search for users with matching names, and return their bots
+  $bot_names = db_query("SELECT n.nid, n.title, u.name FROM {node} n INNER JOIN {field_revision_field_private} fp ON fp.entity_id = n.nid INNER JOIN {users} u ON n.uid = u.uid WHERE n.type = 'codebot' AND fp.field_private_value != 1 AND n.uid != :uid AND u.name LIKE :search LIMIT 10", array(':uid' => $user->uid, ':search' => '%'.$val.'%'))->fetchAll();
+
+  foreach ($bot_names as $bots) {
+    if(!empty($bots->nid) && !empty($bots->title) && !empty($bots->name)) {
+      $matches['bot_id:'.$bots->nid.' name:'.$bots->title] = $bots->title.' - '.$bots->name;
+    }
+  }
+
+  drupal_json_output($matches);
+}
+
+/**
+ * returns an associative array of codebots for the vs dropdown menus
+ * @param $user_id
+ * @return array
+ */
+function _return_available_bots($user_id) {
+  //we have to pass an empty value for the first array value to get the Chosen single de-select to work correctly
+  $ret_val = array('' => '');
+
+  //find the bots associated with the user
+  $my_bots = db_query("SELECT nid, title FROM {node} WHERE type = 'codebot' AND uid = :uid", array(':uid' => $user_id))->fetchAll();
+
+  foreach ($my_bots as $bots) {
+    if(!empty($bots->nid) && !empty($bots->title)) {
+      //make sure the nid and title fields are set
+      if(empty($ret_val['My Bots'])) {
+        $ret_val['My Bots'] = array();
+      }
+
+      $ret_val['My Bots'][$bots->nid] = $bots->title;
+    }
+  }
+
+
+  //find other user-generated bots
+  //@todo this will have to be more efficient or return less results when live, as it may quickly fill hundreds of results. the easiest way to accomplish this may be to make an auto-complete text field
+  $other_bots = db_query("SELECT n.nid, n.title, u.name FROM {node} n INNER JOIN {field_revision_field_private} fp ON fp.entity_id = n.nid INNER JOIN {users} u ON n.uid = u.uid WHERE n.type = 'codebot' AND fp.field_private_value != 1 AND n.uid != :uid", array(':uid' => $user_id))->fetchAll();
+
+  foreach ($other_bots as $bots) {
+    if(!empty($bots->nid) && !empty($bots->title) && !empty($bots->name)) {
+      //make sure the nid and title fields are set
+      if(empty($ret_val['Public Bots'])) {
+        $ret_val['Public Bots'] = array();
+      }
+
+      $ret_val['Public Bots'][$bots->nid] = $bots->title.' - '.$bots->name;
+    }
+  }
+
+  return $ret_val;
+}
+
+/**
+ * Returns a form for the bot vs form
+ * @param $form
+ * @param $form_state
+ * @param $bot
+ * @return mixed
+ */
+function codewar_select_bot_vs_form($form, &$form_state, $bot) {
+  if(empty($form_state['selected_bots'])) {
+    $sel_bots = array();
+  } else {
+    $sel_bots = $form_state['selected_bots'];
+  }
+
+  if(!empty($form_state['input']['bot_search'])) {
+    $break_spaces = explode(' ', $form_state['input']['bot_search']);
+    $bot_id = trim(str_replace('bot_id:', '', $break_spaces[0]));
+
+    if(!is_numeric($bot_id)) {
+      drupal_set_message('Bot "'.$form_state['input']['bot_search'].'" not recognized', 'warning');
+    } else {
+      $sel_bots[] = $bot_id;
+    }
+  }
+  if(!empty($form_state['input']['bot_select'])) {
+    $sel_bots[] = $form_state['input']['bot_select'];
+  }
+
+  dpm($form_state);
+  if(!empty($bot->title)) {
+    $form['bot_name'] = array(
+      '#markup' => '<h3 class="bot-name">'.$bot->title.' VS </h3>'
+    );
+  }
+  $form['bot_id'] = array(
+    '#type' => 'hidden',
+    '#value' => (isset($bot->nid)) ? $bot->nid : 0,
+  );
+
+  global $user;
+
+  $form['bot_search'] = array(
+    '#type' => 'textfield',
+    '#description' => 'Search by bot name or username...',
+    '#autocomplete_path' => 'bot-search'
+  );
+
+  $form['bot_select'] = array(
+    '#type' => 'select',
+    '#description' => 'Or select from a list of your own bots and example bots',
+    '#attributes' => array(
+      'data-placeholder' => 'Choose Codebot...',
+      'class' => array('bot-selector')
+    ),
+    '#options' => _return_available_bots($user->uid)
+  );
+
+  $form['add_bot'] = array(
+    '#type' => 'submit',
+    '#value' => 'Add'
+  );
+
+  //set up the headers for the selected bots table
+  $header = array(
+    'name' => t('Name'),
+    'owner' => t('Owner'),
+    'wins' => t('Wins'),
+    'losses' => t('Losses'),
+    'deaths' => t('Deaths'),
+    'kills' => t('Kills')
+  );
+
+  $options = array();
+
+//  $options[500] = array(
+//    'name' => 'POOP',
+//    'owner' => 'sharts',
+//    'wins' => 5,
+//    'losses' => 10,
+//    'deaths' => 500,
+//    'kills' => 2
+//  );
+
+  $form['selected_bots'] = array(
+    '#type' => 'tableselect',
+    '#header' => $header,
+    '#options' => $options,
+    '#empty' => t('No Bots Selected'),
+    '#js_select' => false
+  );
+
+  $form_state['selected_bots'] = $sel_bots;
+
+  return $form;
+}
+
+/**
+ * bot home page
+ * @param $node
+ * @return string
+ */
+function codewar_display_bot($node) {
+  //add chosen
+  $path = drupal_get_path('module', 'codewar');
+  drupal_add_js($path.'/chosen/chosen.jquery.min.js');
+  drupal_add_css($path.'/chosen/chosen.min.css');
+  //add our homepage javascript, which applies chosen to the dropdown
+  drupal_add_js($path.'/js/codebot_home.js');
+
+//  dpm($node);
+  $output = '';
+
+  if(!empty($node->title)) {
+    //make sure there is a title (name) set for this codebot
+    drupal_set_title($node->title);
+    $output .= '<h2>'.$node->title.'</h2>';
+  }
+
+  if(isset($node->nid)) {
+    //make sure we have a node id for the codebot, and if so, add the bot menu
+    $output .= codewar_bot_menu($node->nid,1);
+  }
+
+  if(!empty($node->title)) {
+    $output .= drupal_render(drupal_get_form('codewar_select_bot_vs_form', $node));
+  }
+
+  return $output;
 }
 
 /**
@@ -133,36 +383,73 @@ function codewar_build_code($node) {
 
 /**
  * run the codebot
- * @param $node
+ * @param $bots
  * @return string
  */
-function codewar_run_code($node) {
-  //build the current code
-  $this_code = codewar_build_code($node);
+function codewar_run_code($bots) {
+  //$bots is a bin2hex'd array
+
+  $ind_bots = explode('*', pack("H*", $bots));
 
   $this_map = new code_map();
 
-  //assuming that each field_life_level point is 5 points of life (and 0 is the base at 5 points)
-  //each additional armor point is 2 points
-  //speed is simply +1'd
-  //weapons are passed as booleans
-  $this_map->add_new_bot(
-    $this_code,
-    (($node->field_life_level[LANGUAGE_NONE][0]['value']+1)*kLIFE_POINTS),
-    ($node->field_armor_level[LANGUAGE_NONE][0]['value']*kARMOR_POINTS),
-    ($node->field_speed[LANGUAGE_NONE][0]['value']+1),
-    ($node->field_ranged_weapon[LANGUAGE_NONE][0]['value'] == 1),
-    ($node->field_mid_range_attack_weapon[LANGUAGE_NONE][0]['value'] == 1),
-    ($node->field_mine_weapon[LANGUAGE_NONE][0]['value'] == 1),
-    ($node->field_bomb_weapon[LANGUAGE_NONE][0]['value'] == 1)
-  );
+  //add a hidden div for things like our existing icons and save icons
+  $output = '<div class="hidden" id="icon-hidey-hole">';
+
+  if($ind_bots && count($ind_bots) > 0) {
+    //make sure we got some kind of result out of the passed value
+
+    $bot_num = 0;
+
+    foreach ($ind_bots as $bot) {
+      //build the current code
+      $this_code = codewar_build_code($bot);
+
+      //assuming that each field_life_level point is 5 points of life (and 0 is the base at 5 points)
+      //each additional armor point is 2 points
+      //speed is simply +1'd
+      //weapons are passed as booleans
+      $this_map->add_new_bot(
+        $this_code,
+        (($bot->field_life_level[LANGUAGE_NONE][0]['value']+1)*kLIFE_POINTS),
+        ($bot->field_armor_level[LANGUAGE_NONE][0]['value']*kARMOR_POINTS),
+        ($bot->field_speed[LANGUAGE_NONE][0]['value']+1),
+        ($bot->field_ranged_weapon[LANGUAGE_NONE][0]['value'] == 1),
+        ($bot->field_mid_range_attack_weapon[LANGUAGE_NONE][0]['value'] == 1),
+        ($bot->field_mine_weapon[LANGUAGE_NONE][0]['value'] == 1),
+        ($bot->field_bomb_weapon[LANGUAGE_NONE][0]['value'] == 1)
+      );
+
+      //add our images within a hidden div, so they are accessible to the javascript
+      if(isset($bot->field_icon[LANGUAGE_NONE])) {
+        $icon_num = 1;
+        foreach ($bot->field_icon[LANGUAGE_NONE] as $icon_file) {
+          if(isset($icon_file['uri'])) {
+            //this icon is valid
+            $address = file_create_url($icon_file['uri']);
+
+            $output .= '<img src="'.$address.'" id="icon-'.$icon_num.'-'.$bot_num.'"/>';
+            $icon_num++;
+          }
+        }
+      }
+
+      $bot_num++;
+    }
+
+  }
+
+
+  $output .= '</div>';
+
+  $output .= '<div id="code_result">CODE:<br/></div>';
 
   dpm($this_map);
 
   //the session and cache data for this map uses the current user and the node ids to keep everything unique
   //and to prevent collisions
   global $user;
-  $cache_vals = $user->uid.'*'.$node->nid;
+  $cache_vals = $user->uid.'*'.$bots;
 
   $cache_data = json_encode($this_map);
 
@@ -177,27 +464,6 @@ function codewar_run_code($node) {
   $path = drupal_get_path('module', 'codewar');
   drupal_add_js($path.'/js/codebot.js');
 
-  //add a hidden div for things like our existing icons and save icons
-  $output = '<div class="hidden" id="icon-hidey-hole">';
-
-  //add our images within a hidden div, so they are accessible to the javascript
-  if(isset($node->field_icon[LANGUAGE_NONE])) {
-    $icon_num = 1;
-    foreach ($node->field_icon[LANGUAGE_NONE] as $icon_file) {
-      if(isset($icon_file['uri'])) {
-        //this icon is valid
-        $address = file_create_url($icon_file['uri']);
-
-        $output .= '<img src="'.$address.'" id="icon-'.$icon_num.'"/>';
-        $icon_num++;
-      }
-    }
-  }
-
-  $output .= '</div>';
-
-  $output .= '<div id="code_result">CODE:<br/></div>';
-
   return $output;
 }
 
@@ -207,7 +473,10 @@ function codewar_run_code($node) {
  * @return string
  */
 function codewar_process_code($session_value) {
-  $ret_val = '00';
+  $ret_val = '00-';
+
+//  $ret_val .= bin2hex('1*1*530*40');
+  $ret_val .= pack("H*", '312a312a3533302a3430');
 
   $session_data = false;
 
@@ -322,8 +591,13 @@ function codewar_render_code($node) {
     $raw_body = $this_body[0]['value'];
   }
 
+  $output = '';
+  if(isset($node->nid)) {
+    //make sure we have a node id for the codebot, and if so, add the bot menu
+    $output .= codewar_bot_menu($node->nid,2);
+  }
   //add the ace wrapper
-  $output = '<div id="code-body">'.$raw_body.'</div>';
+  $output .= '<div id="code-body">'.$raw_body.'</div>';
   $output .= '<button id="save-code">Save</button>';
 
   //add all of our javascript, including the no-conflict minimized ace, and the custom js that sets our editor and the ace settings
@@ -360,6 +634,11 @@ function codewar_edit_attributes_page($form, &$form_state, $node) {
   $path = drupal_get_path('module', 'codewar');
   drupal_add_js($path.'/js/codebot_attributes.js');
 
+  if(isset($node->nid)) {
+    $form['top_menu'] = array(
+      '#markup' => codewar_bot_menu($node->nid,4)
+    );
+  }
   //@todo max points can be changed to set weight class of bot -- e.g. welter weight may be 10 pts, heavy may be 40, etc.
   $js_vals = array(
     'life_points' => kLIFE_POINTS,
@@ -557,8 +836,14 @@ function codewar_edit_attributes_page_submit($form, $form_state) {
  */
 function codewar_edit_icons_page($node) {
 
+  $output = '';
+  if(isset($node->nid)) {
+    //make sure we have a node id for the codebot, and if so, add the bot menu
+    $output .= codewar_bot_menu($node->nid,3);
+  }
+
   //add a hidden div for things like our existing icons and save icons
-  $output = '<div class="hidden" id="icon-hidey-hole">';
+  $output .= '<div class="hidden" id="icon-hidey-hole">';
 
   //add our images within a hidden div, so they are accessible to the javascript
   if(isset($node->field_icon[LANGUAGE_NONE])) {
