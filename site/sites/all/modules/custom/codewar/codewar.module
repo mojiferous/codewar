@@ -227,27 +227,25 @@ function _return_available_bots($user_id) {
  * @return mixed
  */
 function codewar_select_bot_vs_form($form, &$form_state, $bot) {
-  if(empty($form_state['selected_bots'])) {
+  //set the selected bots variable, either from the forn_state or init an array. The form_state is re-set further down the function
+  if(empty($form_state['sel_bots'])) {
     $sel_bots = array();
   } else {
-    $sel_bots = $form_state['selected_bots'];
+    $sel_bots = $form_state['sel_bots'];
   }
 
-  if(!empty($form_state['input']['bot_search'])) {
-    $break_spaces = explode(' ', $form_state['input']['bot_search']);
-    $bot_id = trim(str_replace('bot_id:', '', $break_spaces[0]));
-
-    if(!is_numeric($bot_id)) {
-      drupal_set_message('Bot "'.$form_state['input']['bot_search'].'" not recognized', 'warning');
-    } else {
-      $sel_bots[] = $bot_id;
-    }
-  }
+  //clear any pre-entered values
   if(!empty($form_state['input']['bot_select'])) {
-    $sel_bots[] = $form_state['input']['bot_select'];
+    unset($form_state['input']['bot_select']);
+  }
+  if(!empty($form_state['input']['bot_search'])) {
+    unset($form_state['input']['bot_search']);
+  }
+  if(!empty($form_state['input']['selected_bots'])) {
+    unset($form_state['input']['selected_bots']);
   }
 
-  dpm($form_state);
+//  dpm($form_state);
   if(!empty($bot->title)) {
     $form['bot_name'] = array(
       '#markup' => '<h3 class="bot-name">'.$bot->title.' VS </h3>'
@@ -262,7 +260,7 @@ function codewar_select_bot_vs_form($form, &$form_state, $bot) {
 
   $form['bot_search'] = array(
     '#type' => 'textfield',
-    '#description' => 'Search by bot name or username...',
+    '#description' => 'Search by bot name or username... Values must be entered in the form bot_id:#, where # is the internal ID of the bot',
     '#autocomplete_path' => 'bot-search'
   );
 
@@ -293,14 +291,19 @@ function codewar_select_bot_vs_form($form, &$form_state, $bot) {
 
   $options = array();
 
-//  $options[500] = array(
-//    'name' => 'POOP',
-//    'owner' => 'sharts',
-//    'wins' => 5,
-//    'losses' => 10,
-//    'deaths' => 500,
-//    'kills' => 2
-//  );
+  foreach ($sel_bots as $key => $bot_id) {
+    $this_bot = node_load($bot_id);
+
+    //@todo build code to parse stats correctly
+    $options[$key] = array(
+      'name' => (isset($this_bot->title)) ? $this_bot->title : '',
+      'owner' => (isset($this_bot->name)) ? $this_bot->name : '',
+      'wins' => 0,
+      'losses' => 0,
+      'deaths' => 0,
+      'kills' => 0
+    );
+  }
 
   $form['selected_bots'] = array(
     '#type' => 'tableselect',
@@ -310,9 +313,112 @@ function codewar_select_bot_vs_form($form, &$form_state, $bot) {
     '#js_select' => false
   );
 
-  $form_state['selected_bots'] = $sel_bots;
+  $form['delete_bot'] = array(
+    '#type' => 'submit',
+    '#value' => 'Delete'
+  );
+
+  $form['fight'] = array(
+    '#type' => 'submit',
+    '#value' => 'Fight!'
+  );
+
+  //reset the selected bots array
+  $form_state['sel_bots'] = $sel_bots;
 
   return $form;
+}
+
+/**
+ * Submit handler for the vs form from the codebot home page
+ * @param $form
+ * @param $form_state
+ */
+function codewar_select_bot_vs_form_submit($form, &$form_state) {
+  if(empty($form_state['sel_bots'])) {
+    $sel_bots = array();
+  } else {
+    $sel_bots = $form_state['sel_bots'];
+  }
+
+  $should_rebuild = false;
+
+  if(isset($form_state['triggering_element']['#id'])) {
+    switch($form_state['triggering_element']['#id']) {
+      case 'edit-add-bot':
+        //the user is adding a bot from the form
+
+        //grab any values from the bot_search or bot_select form elements
+        if(!empty($form_state['input']['bot_search'])) {
+          //the returned auto-complete data should start with bot_id:#
+          $break_spaces = explode(' ', $form_state['input']['bot_search']);
+          $bot_id = trim(str_replace('bot_id:', '', $break_spaces[0]));
+
+          if(!is_numeric($bot_id) || $bot_id === 0) {
+            //bot id should be numeric and not 0. This is the easiest way to
+            drupal_set_message('Bot "'.$form_state['input']['bot_search'].'" not recognized', 'warning');
+          } else {
+            $sel_bots[] = $bot_id;
+          }
+        }
+        //add the bots from the dropdown
+        if(!empty($form_state['input']['bot_select']) && is_numeric($form_state['input']['bot_select'])) {
+          $sel_bots[] = $form_state['input']['bot_select'];
+        }
+
+        //rebuid the form
+        $should_rebuild = true;
+        break;
+
+      case 'edit-delete-bot':
+        //ths user is deleting a bot from the selected form
+        if(!empty($form_state['input']['selected_bots']) && count($form_state['input']['selected_bots']) > 0) {
+          //there are actually bots selected in the form
+
+          $del_bots = array();
+          foreach ($form_state['input']['selected_bots'] as $val) {
+            if(isset($val)) {
+              //only selected values will have a $val
+              $del_bots[] = $val;
+            }
+          }
+          //sort the deleted bots array in descending order, so we can unset values from the sel_bots array
+          rsort($del_bots);
+
+          foreach ($del_bots as $del_val) {
+            unset($sel_bots[$del_val]);
+          }
+
+        }
+
+        //rebuild the form
+        $should_rebuild = true;
+        break;
+
+      case 'edit-fight':
+        //redirect to the battle page
+
+        if(isset($form_state['input']['bot_id'])) {
+          //make sure we have an attached bot id
+          array_unshift($sel_bots, $form_state['input']['bot_id']);
+
+          $node_vals = bin2hex(implode('*', $sel_bots));
+
+          $form_state['redirect'] = 'code/'.$node_vals.'/run';
+        } else {
+          drupal_set_message('Error in VS form submittal: can\'t identify user codebot', 'warning');
+          $should_rebuild = true;
+        }
+
+        break;
+    }
+  }
+
+  //set the selected bots array
+  $form_state['sel_bots'] = $sel_bots;
+
+  $form_state['rebuild'] = $should_rebuild;
+
 }
 
 /**
@@ -388,8 +494,9 @@ function codewar_build_code($node) {
  */
 function codewar_run_code($bots) {
   //$bots is a bin2hex'd array
-
   $ind_bots = explode('*', pack("H*", $bots));
+
+  dpm($ind_bots, 'indian bots');
 
   $this_map = new code_map();
 
@@ -402,8 +509,10 @@ function codewar_run_code($bots) {
     $bot_num = 0;
 
     foreach ($ind_bots as $bot) {
+      $code_bot = node_load($bot);
+      dpm($code_bot, 'boot');
       //build the current code
-      $this_code = codewar_build_code($bot);
+      $this_code = codewar_build_code($code_bot);
 
       //assuming that each field_life_level point is 5 points of life (and 0 is the base at 5 points)
       //each additional armor point is 2 points
@@ -411,19 +520,19 @@ function codewar_run_code($bots) {
       //weapons are passed as booleans
       $this_map->add_new_bot(
         $this_code,
-        (($bot->field_life_level[LANGUAGE_NONE][0]['value']+1)*kLIFE_POINTS),
-        ($bot->field_armor_level[LANGUAGE_NONE][0]['value']*kARMOR_POINTS),
-        ($bot->field_speed[LANGUAGE_NONE][0]['value']+1),
-        ($bot->field_ranged_weapon[LANGUAGE_NONE][0]['value'] == 1),
-        ($bot->field_mid_range_attack_weapon[LANGUAGE_NONE][0]['value'] == 1),
-        ($bot->field_mine_weapon[LANGUAGE_NONE][0]['value'] == 1),
-        ($bot->field_bomb_weapon[LANGUAGE_NONE][0]['value'] == 1)
+        (($code_bot->field_life_level[LANGUAGE_NONE][0]['value']+1)*kLIFE_POINTS),
+        ($code_bot->field_armor_level[LANGUAGE_NONE][0]['value']*kARMOR_POINTS),
+        ($code_bot->field_speed[LANGUAGE_NONE][0]['value']+1),
+        ($code_bot->field_ranged_weapon[LANGUAGE_NONE][0]['value'] == 1),
+        ($code_bot->field_mid_range_attack_weapon[LANGUAGE_NONE][0]['value'] == 1),
+        ($code_bot->field_mine_weapon[LANGUAGE_NONE][0]['value'] == 1),
+        ($code_bot->field_bomb_weapon[LANGUAGE_NONE][0]['value'] == 1)
       );
 
       //add our images within a hidden div, so they are accessible to the javascript
-      if(isset($bot->field_icon[LANGUAGE_NONE])) {
+      if(isset($code_bot->field_icon[LANGUAGE_NONE])) {
         $icon_num = 1;
-        foreach ($bot->field_icon[LANGUAGE_NONE] as $icon_file) {
+        foreach ($code_bot->field_icon[LANGUAGE_NONE] as $icon_file) {
           if(isset($icon_file['uri'])) {
             //this icon is valid
             $address = file_create_url($icon_file['uri']);
